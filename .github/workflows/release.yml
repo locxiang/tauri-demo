@@ -23,8 +23,8 @@ jobs:
           # Uncomment for Intel builds
           #   - platform: 'macos-latest' # for Intel based macs.
           #     args: '--target x86_64-apple-darwin'
-          - platform: "ubuntu-24.04"
-            args: ""
+          # - platform: "ubuntu-24.04"
+          #   args: ""
           - platform: "windows-latest"
             args: ""
 
@@ -50,6 +50,51 @@ jobs:
           # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
           targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      - name: Install dependencies (Windows only)
+        if: matrix.platform == 'windows-latest'
+        run: |
+            # 设置 PowerShell 执行策略
+            Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+            
+            # 下载并安装 npcap SDK
+            Write-Host "Installing npcap SDK..." -ForegroundColor Yellow
+            $npcapSdkUrl = "https://npcap.com/dist/npcap-sdk-1.15.zip"
+            $npcapSdkPath = "$env:TEMP\npcap-sdk.zip"
+            try {
+              Invoke-WebRequest -Uri $npcapSdkUrl -OutFile $npcapSdkPath -UseBasicParsing
+              
+              # 解压 SDK
+              Expand-Archive -Path $npcapSdkPath -DestinationPath "$env:TEMP\npcap-sdk" -Force
+              
+              # 创建目录并复制库文件
+              $sdkLibPath = "$env:TEMP\npcap-sdk\Lib\x64"
+              $sdkIncludePath = "$env:TEMP\npcap-sdk\Include"
+              
+              if (Test-Path $sdkLibPath) {
+                # 设置环境变量
+                echo "LIB=$env:LIB;$sdkLibPath" >> $env:GITHUB_ENV
+                echo "INCLUDE=$env:INCLUDE;$sdkIncludePath" >> $env:GITHUB_ENV
+                echo "NPCAP_SDK_PATH=$env:TEMP\npcap-sdk" >> $env:GITHUB_ENV
+                Write-Host "npcap SDK installed successfully" -ForegroundColor Green
+              } else {
+                Write-Host "Warning: npcap SDK extraction failed" -ForegroundColor Yellow
+              }
+            } catch {
+              Write-Host "Warning: Failed to install npcap SDK: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+            
+            # 设置静态链接环境变量
+            echo "RUSTFLAGS=-C target-feature=+crt-static" >> $env:GITHUB_ENV
+            
+            # 显示环境信息
+            Write-Host "Environment setup completed" -ForegroundColor Green
+            Write-Host "Rust version:" -ForegroundColor Blue
+            rustc --version
+            Write-Host "Cargo version:" -ForegroundColor Blue
+            cargo --version
+  
+
+          
       - name: install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-24.04'
         run: |
