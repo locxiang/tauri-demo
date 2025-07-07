@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "tauri-app",
-  "version": "2.6.0",
-  "identifier": "com.tauri-app.my",
+  "productName": "数字重庆业务数据巡查自动化系统",
+  "version": "0.1.0",
+  "identifier": "com.big-data-rpa-v4.my",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",

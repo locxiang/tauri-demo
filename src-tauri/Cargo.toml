@@ -1,10 +1,10 @@
 [package]
-name = "tauri-app"
-version = "2.6.0"
-description = "A Tauri App"
+name = "big-data-rpa-v4"
+version = "0.1.0"
+description = "数字重庆业务数据巡查自动化系统"
 authors = ["you"]
 edition = "2021"
-repository = "https://github.com/Uninen/tauri-vue-template"
+repository = "https://github.com/big-data-rpa-v4"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
