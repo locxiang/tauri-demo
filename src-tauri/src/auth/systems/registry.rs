@@ -30,26 +30,6 @@ impl SystemRegistry {
         ]
     }
     
-    /// 获取已注册的系统数量
-    pub fn system_count() -> usize {
-        Self::create_all_systems().len()
-    }
-    
-    /// 获取所有系统的ID列表
-    pub fn get_system_ids() -> Vec<String> {
-        Self::create_all_systems()
-            .iter()
-            .map(|system| system.system_id().to_string())
-            .collect()
-    }
-    
-    /// 获取所有系统的名称列表
-    pub fn get_system_names() -> Vec<String> {
-        Self::create_all_systems()
-            .iter()
-            .map(|system| system.system_name().to_string())
-            .collect()
-    }
 }
 
 /// 便捷函数：创建所有系统的实例

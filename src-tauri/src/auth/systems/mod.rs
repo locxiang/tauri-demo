@@ -38,19 +38,6 @@ pub trait SystemAuth {
     /// 清除token
     fn clear_token(&mut self);
     
-    /// 检查token是否即将过期（提前5分钟）
-    fn is_token_expiring_soon(&self) -> bool {
-        if let Some(expires_at) = self.get_token_info().expires_at {
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            let warning_time = expires_at.saturating_sub(300); // 提前5分钟
-            now >= warning_time
-        } else {
-            false
-        }
-    }
 }
 
 /// Token验证器接口
