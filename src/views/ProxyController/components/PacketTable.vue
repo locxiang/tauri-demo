@@ -8,8 +8,9 @@ import HttpRequestIcon from '../../../assets/icons/http-request.svg';
 import HttpResponseIcon from '../../../assets/icons/http-response.svg';
 import NetworkPacketIcon from '../../../assets/icons/network-packet.svg';
 
-defineProps<{
+const props = defineProps<{
   packets: PacketData[]
+  isMaximized?: boolean
 }>();
 
 const proxyStore = useProxyStore();
@@ -117,7 +118,7 @@ const openPacketDetail = async (packet: PacketData) => {
     </div>
 
     <!-- 表体 -->
-    <div class="max-h-[310px] overflow-y-auto">
+    <div :class="['overflow-y-auto', props.isMaximized ? 'max-h-[calc(100vh-220px)]' : 'max-h-[200px]']">
       <!-- 空状态 -->
       <div v-if="packets.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
         <img :src="NetworkPacketIcon" alt="网络数据包" class="w-16 h-16 mb-4 opacity-50 text-slate-400" />

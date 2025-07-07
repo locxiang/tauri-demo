@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import PacketTable from './components/PacketTable.vue';
 import PacketFilter from './components/PacketFilter.vue';
@@ -13,8 +13,17 @@ import HttpResponseIcon from '../../assets/icons/http-response.svg';
 const router = useRouter();
 const proxyStore = useProxyStore();
 
+// 表格最大化状态
+const isTableMaximized = ref(false);
+
 const goBack = () => {
   router.push('/');
+};
+
+// 切换表格最大化状态
+const toggleTableMaximize = () => {
+  console.log('toggleTableMaximize', isTableMaximized.value);
+  isTableMaximized.value = !isTableMaximized.value;
 };
 
 onMounted(() => {
@@ -98,10 +107,10 @@ onUnmounted(() => {
       </div>
 
       <!-- 控制面板 -->
-      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-6 mb-6 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
-        <div class="mb-6">
+      <div v-show="!isTableMaximized" class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-4 mb-4 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+        <div class="mb-4">
           <div class="flex items-center gap-3 relative">
-            <div class="text-2xl animate-icon-glow">🎛️</div>
+            <div class="text-xl animate-icon-glow">🎛️</div>
             <h2 class="text-lg font-semibold text-slate-200 font-mono tracking-wide">抓包控制</h2>
             <div class="flex-1 h-0.5 bg-gradient-to-r from-blue-500/60 via-cyan-500/60 to-transparent ml-4 relative overflow-hidden">
               <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent animate-line-scan"></div>
@@ -109,14 +118,14 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="flex items-center gap-6">
+        <div class="flex items-center gap-4">
           <!-- 网络设备选择 - 占50%宽度 -->
-          <div class="w-1/2 bg-gradient-to-br from-slate-900/60 to-slate-800/40 backdrop-blur-lg border border-blue-500/10 rounded-lg p-4">
-            <label class="block text-sm font-semibold text-slate-200 mb-3">选择网络设备</label>
+          <div class="w-1/2 bg-gradient-to-br from-slate-900/60 to-slate-800/40 backdrop-blur-lg border border-blue-500/10 rounded-lg p-3">
+            <label class="block text-sm font-semibold text-slate-200 mb-2">选择网络设备</label>
             <select
               v-model="proxyStore.selectedDevice"
               :disabled="proxyStore.captureStatus.running || proxyStore.isLoading"
-              class="w-full px-4 py-3 bg-gradient-to-r from-slate-900/80 to-slate-800/60 border border-blue-500/30 rounded-lg text-slate-200 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="w-full px-3 py-2 bg-gradient-to-r from-slate-900/80 to-slate-800/60 border border-blue-500/30 rounded-lg text-slate-200 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <option v-if="proxyStore.devices.length === 0" value="" disabled>未找到网络设备</option>
               <option v-for="device in proxyStore.devices" :key="device.name" :value="device.name">
@@ -127,11 +136,11 @@ onUnmounted(() => {
           </div>
 
           <!-- 控制按钮 - 占剩余50%宽度 -->
-          <div class="flex-1 flex items-center gap-4">
+          <div class="flex-1 flex items-center gap-3">
             <button
               @click="proxyStore.startCapture"
               :disabled="!proxyStore.selectedDevice || proxyStore.captureStatus.running || proxyStore.isLoading"
-              class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg text-slate-200 hover:from-green-500/20 hover:to-emerald-500/20 hover:border-green-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group"
+              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg text-slate-200 hover:from-green-500/20 hover:to-emerald-500/20 hover:border-green-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group"
             >
               <span class="text-lg">▶️</span>
               <span class="font-semibold">{{ proxyStore.isLoading ? '启动中...' : '开始抓包' }}</span>
@@ -141,7 +150,7 @@ onUnmounted(() => {
             <button
               @click="proxyStore.stopCapture"
               :disabled="!proxyStore.captureStatus.running || proxyStore.isLoading"
-              class="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-lg text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group"
+              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-lg text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group"
             >
               <span class="text-lg">⏹️</span>
               <span class="font-semibold">{{ proxyStore.isLoading ? '停止中...' : '停止抓包' }}</span>
@@ -152,10 +161,11 @@ onUnmounted(() => {
       </div>
 
       <!-- 数据包过滤器 -->
-      <PacketFilter />
+      <PacketFilter v-show="!isTableMaximized" />
 
       <!-- 实时数据包列表 -->
-      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+      <div :class="['bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden',
+                   isTableMaximized ? 'mt-0' : '']">
         <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-500/80 to-transparent animate-packet-scan"></div>
 
         <div class="p-6 border-b border-blue-500/20">
@@ -188,14 +198,20 @@ onUnmounted(() => {
             </div>
 
             <div class="flex items-center gap-4">
-              <div v-if="proxyStore.captureStatus.running" class="text-sm text-slate-400 font-mono">
-                实时监控中...
-              </div>
+              <button
+                @click="toggleTableMaximize"
+                class="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border border-indigo-500/30 rounded-lg text-slate-200 hover:from-indigo-500/20 hover:to-purple-500/20 hover:border-indigo-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group"
+                :title="isTableMaximized ? '显示控制面板' : '隐藏控制面板'"
+              >
+                <span class="text-sm">{{ isTableMaximized ? '📤' : '📥' }}</span>
+                <span class="text-sm font-medium">{{ isTableMaximized ? '还原' : '最大化' }}</span>
+                <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
+              </button>
             </div>
           </div>
         </div>
 
-        <PacketTable :packets="proxyStore.filteredPackets" />
+        <PacketTable :packets="proxyStore.filteredPackets" :is-maximized="isTableMaximized" />
       </div>
     </div>
   </div>
