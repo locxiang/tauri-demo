@@ -1,7 +1,7 @@
 {
   "name": "数字重庆业务数据巡查自动化系统",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"pnpm vite:dev\" \"pnpm devtools\"",
@@ -20,7 +20,8 @@
     "@tauri-apps/plugin-shell": "^2.2.2",
     "@vue/devtools": "^7.7.6",
     "pinia": "^3.0.3",
-    "vue": "^3.5.17"
+    "vue": "^3.5.17",
+    "vue-router": "^4.5.1"
   },
   "devDependencies": {
     "@egoist/tailwindcss-icons": "^1.9.0",

@@ -10,5 +10,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     GreetComponent: typeof import('./src/components/GreetComponent.vue')['default']
     NetworkDeviceComponent: typeof import('./src/components/NetworkDeviceComponent.vue')['default']
+    RouterLink: typeof import('vue-router')['RouterLink']
+    RouterView: typeof import('vue-router')['RouterView']
   }
 }

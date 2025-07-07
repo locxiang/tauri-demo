@@ -7,11 +7,12 @@ import { defineConfig } from 'vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
 import topLevelAwait from 'vite-plugin-top-level-await'
 import vueDevTools from 'vite-plugin-vue-devtools'
-import { version as pkgVersion } from './package.json'
+import { version as pkgVersion, name as pkgName } from './package.json'
 
 const HOST = process.env.TAURI_DEV_HOST
 const PLATFORM = process.env.TAURI_ENV_PLATFORM
 process.env.VITE_APP_VERSION = pkgVersion
+process.env.VITE_APP_NAME = pkgName
 if (process.env.NODE_ENV === 'production') {
   process.env.VITE_APP_BUILD_EPOCH = new Date().getTime().toString()
 }

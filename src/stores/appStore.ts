@@ -3,12 +3,21 @@ import { acceptHMRUpdate, defineStore } from 'pinia'
 const versionString =
   import.meta.env.MODE === 'development' ? `${import.meta.env.VITE_APP_VERSION}-dev` : import.meta.env.VITE_APP_VERSION
 
-export const useStore = defineStore('main', {
+
+export interface AppState {
+  debug: boolean;
+  version: string;
+  isInitialized: boolean;
+  name: string;
+}
+console.log("import.meta.env", import.meta.env)
+
+export const useAppStore = defineStore('app', {
   state: () => ({
     debug: import.meta.env.MODE === 'development',
     version: versionString,
     isInitialized: false,
-    name: '',
+    name: import.meta.env.VITE_APP_NAME,
   }),
 
   actions: {
@@ -33,5 +42,5 @@ export const useStore = defineStore('main', {
 })
 
 if (import.meta.hot) {
-  import.meta.hot.accept(acceptHMRUpdate(useStore, import.meta.hot))
+  import.meta.hot.accept(acceptHMRUpdate(useAppStore, import.meta.hot))
 }
