@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import GreetComponent from './components/GreetComponent.vue'
+import NetworkDeviceComponent from './components/NetworkDeviceComponent.vue'
 const store = useStore()
 store.initApp()
 </script>
@@ -22,5 +23,8 @@ store.initApp()
     <p>Click on the Tauri, Vite, and Vue logos to learn more.</p>
 
     <GreetComponent />
+
+    <!-- 网络设备信息组件 -->
+    <NetworkDeviceComponent />
   </main>
 </template>

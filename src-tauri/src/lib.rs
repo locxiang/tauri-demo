@@ -1,4 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+
+mod capture;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     println!("Backend was called with an argument: {}", name);
@@ -18,7 +21,12 @@ pub fn run() {
         })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_prevent_default::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            capture::get_network_device_count,
+            capture::get_network_devices,
+            capture::get_active_network_device_count
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
