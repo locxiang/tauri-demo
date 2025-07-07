@@ -275,27 +275,6 @@ import type { TokenEvent, TokenState } from '@/stores/authStore';
 const router = useRouter();
 const authStore = useAuthStore();
 
-// 当前时间用于实时倒计时
-const currentTime = ref(Math.floor(Date.now() / 1000));
-let timeUpdateInterval: number | null = null;
-
-// 生命周期
-onMounted(async () => {
-  await authStore.initialize();
-
-  // 启动定时器，每秒更新当前时间
-  timeUpdateInterval = window.setInterval(() => {
-    currentTime.value = Math.floor(Date.now() / 1000);
-  }, 1000);
-});
-
-onUnmounted(() => {
-  // 清理定时器
-  if (timeUpdateInterval) {
-    clearInterval(timeUpdateInterval);
-    timeUpdateInterval = null;
-  }
-});
 
 // 返回控制台
 const goBack = () => {

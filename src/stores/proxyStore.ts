@@ -224,7 +224,7 @@ export const useProxyStore = defineStore('proxy', () => {
       // 设置HTTP数据包通道
       const httpChannel = new Channel<HttpPacket>();
       httpChannel.onmessage = (httpPacket: HttpPacket) => {
-        console.log(`收到 HTTP ${httpPacket.packet_type === 'request' ? '请求' : '响应'}:`, httpPacket);
+        console.log(`收到 HTTP ${httpPacket.packet_type === 'request' ? '请求' : '响应'}:`, httpPacket.path);
 
         const packet = convertHttpPacketToPacketData(httpPacket);
         packets.value.unshift(packet);

@@ -308,7 +308,7 @@ fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, de
     while running.load(Ordering::Relaxed) {
         match cap.next_packet() {
             Ok(packet) => {
-                debug!("捕获到数据包: {} 字节", packet.data.len());
+                //debug!("捕获到数据包: {} 字节", packet.data.len());
                 match SlicedPacket::from_ethernet(packet.data) {
                     Ok(sliced) => process_packet(sliced),
                     Err(e) => debug!("解析数据包错误: {:?}", e)
@@ -725,7 +725,7 @@ fn send_http_packet(packet: HttpPacket) {
         if let Some(channel) = &*guard {
             info!("通过 Channel 发送 HTTP {}: {:?}", 
                 if packet.packet_type == "request" { "请求" } else { "响应" }, 
-                packet);
+                packet.path);
             if let Err(e) = channel.send(packet) {
                 error!("发送 HTTP 数据包失败: {}", e);
             }

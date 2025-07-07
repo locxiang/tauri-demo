@@ -11,6 +11,7 @@ pub struct LogEntry {
     pub line: Option<u32>,
 }
 
+
 // 获取系统日志
 #[tauri::command]
 pub fn get_system_logs() -> Result<Vec<LogEntry>, String> {

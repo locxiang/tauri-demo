@@ -21,10 +21,7 @@
       <!-- 右侧状态信息 -->
       <div class="flex items-center space-x-4">
         <div class="text-sm text-slate-300">
-          系统运行时长: {{ systemRuntime }}
-        </div>
-        <div class="text-sm text-slate-300">
-          {{ currentTime }}
+          系统运行时长: {{ appStore.uptime }}
         </div>
       </div>
     </header>
@@ -133,8 +130,12 @@
                 <!-- 日志内容 -->
                 <div class="flex-1 break-all">
                   <div class="text-slate-200">{{ log.message }}</div>
-                  <div v-if="log.file && log.line" class="text-slate-500 text-xs mt-1">
-                    {{ log.file }}:{{ log.line }}
+                  <div v-if="log.file" class="text-slate-500 text-xs mt-1 flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1">
+                      <span class="text-blue-400">📄</span>
+                      <span class="text-blue-300">{{ log.file }}</span>
+                    </span>
+                    <span v-if="log.line" class="text-slate-400">行号: {{ log.line }}</span>
                   </div>
                 </div>
               </div>
@@ -145,19 +146,19 @@
     </section>
 
     <!-- 底部状态栏 -->
-    <section class="h-[60px] bg-slate-800 border-t border-slate-600 px-6 flex items-center justify-between">
+    <section class="h-[60px] bg-slate-800 border-t border-slate-600 px-6 flex items-center justify-between" @click="openLogFileDir">
       <div class="flex items-center space-x-6">
         <div class="flex items-center space-x-2">
           <div class="w-3 h-3 rounded-full bg-green-500"></div>
           <span class="text-sm text-slate-300">日志系统运行正常</span>
         </div>
         <div class="text-sm text-slate-400">
-          日志文件位置: {{ getLogFilePath() }}
+          日志文件位置: {{ getLogFileDir()+'app_logs.log' }}
         </div>
       </div>
 
       <div class="text-sm text-slate-400">
-        © 重庆秫米科技技术有限公司 {{ new Date().getFullYear() }}
+        © 重庆秫米科技有限公司 {{ new Date().getFullYear() }}
       </div>
     </section>
   </div>
@@ -167,12 +168,13 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
+import { useAppStore } from '@/stores/appStore'
+
+const appStore = useAppStore()
 
 const router = useRouter()
 
 // 响应式数据
-const currentTime = ref('')
-const systemRuntime = ref('2天 15小时 32分钟')
 const lastUpdateTime = ref('')
 const autoScroll = ref(true)
 const selectedLogLevel = ref('all')
@@ -211,24 +213,9 @@ const filteredLogs = computed(() => {
   return filtered.sort((a, b) => a.timestamp - b.timestamp)
 })
 
-// 定时器
-let timeTimer: NodeJS.Timeout | null = null
-let refreshTimer: NodeJS.Timeout | null = null
-
 // 方法
 const goBack = () => {
   router.push('/dashboard')
-}
-
-const updateTime = () => {
-  const now = new Date()
-  currentTime.value = now.toLocaleTimeString('zh-CN', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
-  lastUpdateTime.value = now.toLocaleTimeString('zh-CN')
 }
 
 const refreshLogs = async () => {
@@ -321,37 +308,31 @@ const getLogCount = (level: string): number => {
   return logs.value.filter(log => log.level === level).length
 }
 
-const getLogFilePath = (): string => {
+const getLogFileDir = (): string => {
   const platform = navigator.platform.toLowerCase()
   if (platform.includes('mac')) {
-    return '~/Library/Logs/com.big-data-rpa-v4.my/app_logs.log'
+    return '~/Library/Logs/com.big-data-rpa-v4.my/'
   } else if (platform.includes('win')) {
-    return '%LOCALAPPDATA%\\com.big-data-rpa-v4.my\\logs\\app_logs.log'
+    return '%LOCALAPPDATA%\\com.big-data-rpa-v4.my\\logs\\'
   } else {
-    return '~/.local/share/com.big-data-rpa-v4.my/logs/app_logs.log'
+    return '~/.local/share/com.big-data-rpa-v4.my/logs/'
   }
 }
 
+const openLogFileDir = () => {
+  const logFileDir = getLogFileDir()
+  console.log("打开日志文件夹",logFileDir)
 
+  invoke('open_folder', { path: logFileDir })
+}
 
 onMounted(() => {
-  updateTime()
-  timeTimer = setInterval(updateTime, 1000)
-
   // 初始化时加载日志
   refreshLogs()
-
-  // 每30秒自动刷新日志
-  refreshTimer = setInterval(async () => {
-    if (autoScroll.value) {
-      await refreshLogs()
-    }
-  }, 30000)
 })
 
 onUnmounted(() => {
-  if (timeTimer) clearInterval(timeTimer)
-  if (refreshTimer) clearInterval(refreshTimer)
+  // No need to clear timers as the store handles it
 })
 </script>
 

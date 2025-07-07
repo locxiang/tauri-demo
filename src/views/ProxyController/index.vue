@@ -26,14 +26,7 @@ const toggleTableMaximize = () => {
   isTableMaximized.value = !isTableMaximized.value;
 };
 
-onMounted(() => {
-  proxyStore.initialize();
-});
 
-onUnmounted(() => {
-  // 关闭窗口但是不关闭抓包
-  // proxyStore.cleanup();
-});
 </script>
 
 <template>

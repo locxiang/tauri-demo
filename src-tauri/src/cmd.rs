@@ -2,6 +2,7 @@ use crate::capture;
 use crate::auth;
 use tauri::ipc::Channel;
 
+use tauri::Manager;
 
 // 获取捕获状态
 #[tauri::command]
@@ -133,5 +134,38 @@ pub fn get_token_event_history() -> Vec<auth::TokenEvent> {
 #[tauri::command]
 pub fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
-    log::info!("已打开开发者工具");
+}
+
+
+#[tauri::command]
+pub async fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let command = "open";
+    
+    #[cfg(target_os = "windows")]
+    let command = "explorer";
+    
+    #[cfg(target_os = "linux")]
+    let command = "xdg-open";
+    
+    // 展开路径中的 ~ 符号
+    let expanded_path = if path.starts_with("~/") {
+        match dirs::home_dir() {
+            Some(mut home) => {
+                home.push(&path[2..]);
+                home.to_string_lossy().into_owned()
+            },
+            None => return Err("无法获取用户主目录".to_string())
+        }
+    } else {
+        path
+    };
+    
+    log::info!("尝试打开文件夹: {}", expanded_path);
+    
+    std::process::Command::new(command)
+        .arg(&expanded_path)
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }

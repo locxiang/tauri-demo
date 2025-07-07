@@ -16,7 +16,7 @@
       <!-- 右侧操作区域 -->
       <div class="flex items-center">
         <div class="text-sm text-slate-300">
-          {{ currentTime }}
+         <!-- {{ appStore.uptime }} 暂时没想好怎么显示 -->
         </div>
       </div>
     </header>
@@ -83,7 +83,7 @@
           <div class="text-3xl">⏰</div>
           <div class="flex-1">
             <div class="text-sm font-medium text-white">运行时长</div>
-            <div class="text-xs text-green-400 mt-1">{{ systemStatus.runTime }}</div>
+            <div class="text-xs text-green-400 mt-1">{{ appStore.uptime }}</div>
           </div>
           <div class="w-3 h-3 rounded-full bg-green-500"></div>
         </div>
@@ -198,7 +198,7 @@
       <!-- 右侧版权信息 -->
       <div class="text-sm text-slate-400">
         <span class="mr-2">©</span>
-        <span class="font-medium">重庆秫米科技技术有限公司</span>
+        <span class="font-medium">重庆秫米科技有限公司</span>
         <span class="ml-2">{{ new Date().getFullYear() }} All Rights Reserved</span>
       </div>
     </section>
@@ -224,7 +224,6 @@ const currentTime = ref('');
 // 系统状态数据
 const systemStatus = ref({
   hasSystemAuth: true,
-  runTime: '2天 15小时 32分钟',
   automationStatus: '运行中',
   activeModules: 2
 });
@@ -397,61 +396,11 @@ const openLogsPage = () => {
   router.push('/logs');
 };
 
-// 检查系统权限和状态
-const checkSystemStatus = async () => {
-  try {
-    // 初始化 authStore
-    if (!authStore.tokenStatuses.length) {
-      await authStore.initialize();
-    }
-
-    // 刷新 token 状态
-    await authStore.refreshTokenStatuses();
-
-    // 检查网络捕获权限
-    const hasPermission = await proxyStore.checkPermissions();
-    systemStatus.value.hasSystemAuth = hasPermission;
-
-    // 获取捕获状态
-    await proxyStore.getCaptureStatus();
-
-    // 更新系统状态
-    systemStatus.value.automationStatus = proxyStore.isCapturing ? '运行中' : '已停止';
-    systemStatus.value.activeModules = proxyStore.isCapturing ? 1 : 0;
-
-  } catch (error) {
-    console.error('检查系统状态失败:', error);
-    systemStatus.value.hasSystemAuth = false;
-  }
-};
 
 function openDevtools() {
   invoke('open_devtools');
 }
 
-onMounted(async () => {
-  updateTime();
-  timeTimer = setInterval(updateTime, 1000);
-
-  // 检查系统状态
-  await checkSystemStatus();
-
-  // 定期刷新系统权限状态和运行状态
-  setInterval(async () => {
-    try {
-      await authStore.refreshTokenStatuses();
-      await proxyStore.getCaptureStatus();
-    } catch (error) {
-      console.error('刷新系统状态失败:', error);
-    }
-  }, 10000); // 每10秒刷新一次
-});
-
-onUnmounted(() => {
-  if (timeTimer) {
-    clearInterval(timeTimer);
-  }
-});
 </script>
 
 <style scoped>

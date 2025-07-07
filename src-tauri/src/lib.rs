@@ -60,6 +60,7 @@ pub fn run() {
             // 日志系统命令
             logread::get_system_logs,
             cmd::open_devtools,
+            cmd::open_folder,
         ])
         .setup(|app| {// 初始化 AppHandle
             if let Err(e) = capture::init_app_handle(app.handle().clone()) {
