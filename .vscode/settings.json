@@ -5,5 +5,11 @@
     "tsconfig.json": "tsconfig.*.json",
     "LICENSE": "CLICENSE, CODE_OF_CONDUCT.md",
     ".editorconfig": ".editorconfig, .prettierrc.json, biome.json, eslint.config.cjs"
-  }
+  },
+  "cSpell.words": [
+    "cdylib",
+    "rlib",
+    "staticlib",
+    "tauri"
+  ]
 }
