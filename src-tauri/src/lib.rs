@@ -4,18 +4,11 @@ mod capture;
 mod auth;
 use log::{error, info};
 mod cmd;
+mod logread;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .setup(|_app| {
-            #[cfg(debug_assertions)] // only include this code on debug builds
-            {
-                let window = tauri::Manager::get_webview_window(_app, "main").unwrap();
-                window.open_devtools();
-            }
-            Ok(())
-        })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_prevent_default::init())
         .plugin(
@@ -65,10 +58,11 @@ pub fn run() {
             cmd::set_token_event_channel,
             cmd::get_token_event_history,
             // 日志系统命令
-            cmd::get_system_logs
+            logread::get_system_logs,
+            cmd::open_devtools,
         ])
-        .setup(|_app| {// 初始化 AppHandle
-            if let Err(e) = capture::init_app_handle(_app.handle().clone()) {
+        .setup(|app| {// 初始化 AppHandle
+            if let Err(e) = capture::init_app_handle(app.handle().clone()) {
                 error!("初始化 AppHandle 失败: {}", e);
             }
             
@@ -78,11 +72,6 @@ pub fn run() {
             } else {
                 info!("🔐 认证系统初始化成功");
             }
-            
-            // 测试日志持久化功能
-            info!("📝 日志系统已启动，日志将保存到应用程序日志目录");
-            log::debug!("调试信息：应用版本 v0.3.0");
-            log::warn!("这是一条警告信息的测试");
             
             {
                 if capture::has_capture_prerequisites() {
@@ -99,6 +88,15 @@ pub fn run() {
                     info!("未检测到Npcap，抓包功能可能受限");
                 }
             }
+
+            // #[cfg(debug_assertions)] // 只在开发模式下
+            // {
+            //     use tauri::Manager;
+
+            //     let window = app.get_webview_window("main").unwrap();
+            //     window.open_devtools();
+            //     window.close_devtools(); // 如果你只想打开一次可以注释掉这行
+            // }
 
             
             

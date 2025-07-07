@@ -178,7 +178,7 @@
 
           <div>
             <span class="text-sm text-slate-400">版本：</span>
-            <span class="text-sm font-medium text-blue-400">{{ appStore.version }}</span>
+            <span class="text-sm font-medium text-blue-400 cursor-pointer hover:underline" @click="openDevtools">{{ appStore.version }}</span>
           </div>
 
           <div>
@@ -211,6 +211,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useProxyStore, useAuthStore, useAppStore } from '../../stores';
+import { invoke } from '@tauri-apps/api/core';
 
 const router = useRouter();
 const proxyStore = useProxyStore();
@@ -423,6 +424,10 @@ const checkSystemStatus = async () => {
     systemStatus.value.hasSystemAuth = false;
   }
 };
+
+function openDevtools() {
+  invoke('open_devtools');
+}
 
 onMounted(async () => {
   updateTime();

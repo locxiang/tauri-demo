@@ -1,6 +1,6 @@
 [package]
 name = "big-data-rpa-v4"
-version = "0.3.0"
+version = "0.4.0"
 description = "数字重庆业务数据巡查自动化系统"
 authors = ["you"]
 edition = "2021"
@@ -19,7 +19,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-shell = "2"
 tauri-plugin-log = "2"
 serde = { version = "1", features = ["derive"] }

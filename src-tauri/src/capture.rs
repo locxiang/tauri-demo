@@ -103,7 +103,15 @@ pub fn set_http_channel(channel: Channel<HttpPacket>) -> Result<()> {
     }
 }
 
-pub fn init_capture(device_name: Option<String>) -> Result<()> {
+pub fn init_capture(device_name: String) -> Result<()> {
+    info!("init_capture");
+    info!("准备在设备 {:?} 上初始化数据包捕获", device_name.clone());
+    // 检查设备名称是否为空
+    if device_name.trim().is_empty() {
+        return Err(anyhow!("未指定网络设备名称，无法启动捕获"));
+    }
+    
+    
     // 如果已经在运行，先停止
     if let Some(status) = CAPTURE_STATUS.get() {
         let status_guard = status.lock().unwrap();
@@ -196,15 +204,9 @@ pub fn init_capture(device_name: Option<String>) -> Result<()> {
     let running_clone = running.clone();
     let status_clone = status.clone();
     let capture_thread = thread::spawn(move || {
-        if let Err(e) = start_capture(running_clone, status_clone, device_name) {
+        if let Err(e) = start_capture(running_clone, status_clone, device_name.clone()) {
             error!("数据包捕获出错: {}", e);
-            if let Some(status) = CAPTURE_STATUS.get() {
-                let mut status_guard = status.lock().unwrap();
-                status_guard.running = false;
-                status_guard.message = format!("捕获失败: {}", e);
-            }
-            // 发送状态更新
-            send_status_update();
+            update_capture_status(Some(false), Some(format!("捕获失败: {}", e)), None);
         }
     });
 
@@ -217,7 +219,7 @@ pub fn init_capture(device_name: Option<String>) -> Result<()> {
     Ok(())
 }
 
-fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, device_name: Option<String>) -> Result<()> {
+fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, device_name: String) -> Result<()> {
     info!("开始初始化数据包捕获...");
     
     // 更新状态
@@ -231,98 +233,56 @@ fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, de
     let list = match pcap::Device::list() {
         Ok(list) => list,
         Err(e) => {
-            let err = anyhow!("获取网络设备列表失败: {}", e);
-            {
-                let mut status_guard = status.lock().unwrap();
-                status_guard.running = false;
-                status_guard.message = err.to_string();
-            }
-            send_status_update();
-            return Err(err);
+                    let err = anyhow!("获取网络设备列表失败: {}", e);
+        update_capture_status(Some(false), Some(err.to_string()), None);
+        return Err(err);
         }
     };
     
     if list.is_empty() {
         let err = anyhow!("没有找到可用的网络设备");
-        {
-            let mut status_guard = status.lock().unwrap();
-            status_guard.running = false;
-            status_guard.message = err.to_string();
-        }
-        send_status_update();
+        update_capture_status(Some(false), Some(err.to_string()), None);
         return Err(err);
     }
     
-    // 根据指定的设备名称查找设备，或者自动选择非回环设备
-    let device = if let Some(ref name) = device_name {
+    // 根据指定的设备名称查找设备
+    let device = if !device_name.is_empty() {
         // 查找指定名称的设备
-        match list.iter().find(|d| d.name == *name) {
+        match list.iter().find(|d| d.name == device_name) {
             Some(device) => {
-                info!("找到指定的网络设备: {}", name);
+                info!("找到指定的网络设备: {}", device_name);
                 device
             },
             None => {
-                let err = anyhow!("未找到指定的网络设备: {}", name);
-                {
-                    let mut status_guard = status.lock().unwrap();
-                    status_guard.running = false;
-                    status_guard.message = err.to_string();
-                }
-                send_status_update();
+                let err = anyhow!("未找到指定的网络设备: {}", device_name);
+                update_capture_status(Some(false), Some(err.to_string()), None);
                 return Err(err);
             }
         }
     } else {
-        // 自动选择第一个非回环设备
-        match list.iter().find(|d| !d.flags.is_loopback()) {
-            Some(device) => {
-                info!("自动选择非回环网络设备: {}", device.name);
-                device
-            },
-            None => {
-                let err = anyhow!("没有找到非回环网络设备");
-                {
-                    let mut status_guard = status.lock().unwrap();
-                    status_guard.running = false;
-                    status_guard.message = err.to_string();
-                }
-                send_status_update();
-                return Err(err);
-            }
-        }
+        // 如果没有指定设备名称，直接报错
+        let err = anyhow!("未指定网络设备名称，请选择一个网络设备");
+        update_capture_status(Some(false), Some(err.to_string()), None);
+        return Err(err);
     };
     
     info!("使用网络设备: {}", device.name);
     
     // 更新状态
-    {
-        let mut status_guard = status.lock().unwrap();
-        status_guard.device_name = device.name.clone();
-    }
-    send_status_update();
+    update_capture_status(None, None, Some(device_name.clone()));
     
     let mut cap = match Capture::from_device(device.clone()) {
         Ok(cap) => match cap.promisc(true).timeout(1000).immediate_mode(true).open() {
             Ok(cap) => cap,
             Err(e) => {
                 let err = anyhow!("打开网络设备失败: {}. 请确保已安装ChmodBPF", e);
-                {
-                    let mut status_guard = status.lock().unwrap();
-                    status_guard.running = false;
-                    status_guard.message = err.to_string();
-                }
-                send_status_update();
+                update_capture_status(Some(false), Some(err.to_string()), None);
                 return Err(err);
             }
         },
         Err(e) => {
             let err = anyhow!("创建捕获句柄失败: {}. 请确保已安装ChmodBPF", e);
-            {
-                let mut status_guard = status.lock().unwrap();
-                status_guard.running = false;
-                status_guard.message = err.to_string();
-            }
-            send_status_update();
+            update_capture_status(Some(false), Some(err.to_string()), None);
             return Err(err);
         }
     };
@@ -330,12 +290,7 @@ fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, de
     // 设置过滤器，只捕获 HTTP 流量
     if let Err(e) = cap.filter("tcp port 80 or tcp port 8080 or tcp port 443", true) {
         let err = anyhow!("设置过滤器失败: {}", e);
-        {
-            let mut status_guard = status.lock().unwrap();
-            status_guard.running = false;
-            status_guard.message = err.to_string();
-        }
-        send_status_update();
+        update_capture_status(Some(false), Some(err.to_string()), None);
         return Err(err);
     }
     
@@ -371,12 +326,7 @@ fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, de
     }
 
     // 更新状态为已停止
-    {
-        let mut status_guard = status.lock().unwrap();
-        status_guard.running = false;
-        status_guard.message = "数据包捕获已停止".to_string();
-    }
-    send_status_update();
+    update_capture_status(Some(false), Some("数据包捕获已停止".to_string()), None);
 
     info!("数据包捕获已停止");
     Ok(())
@@ -703,12 +653,7 @@ pub fn stop_capture() -> Result<()> {
     }
     
     // 更新状态
-    if let Some(status) = CAPTURE_STATUS.get() {
-        let mut status_guard = status.lock().unwrap();
-        status_guard.running = false;
-        status_guard.message = "数据包捕获已停止".to_string();
-    }
-    send_status_update();
+    update_capture_status(Some(false), Some("数据包捕获已停止".to_string()), None);
     
     info!("数据包捕获停止完成");
     Ok(())
@@ -741,6 +686,36 @@ fn send_status_update() {
             }
         }
     }
+}
+
+// 优雅的状态更新函数
+fn update_capture_status(running: Option<bool>, message: Option<String>, device_name: Option<String>) {
+    if let Some(status) = CAPTURE_STATUS.get() {
+        let mut status_guard = status.lock().unwrap();
+        
+        if let Some(running_val) = running {
+            status_guard.running = running_val;
+        }
+        
+        if let Some(message_val) = message {
+            status_guard.message = message_val;
+        }
+        
+        if let Some(device_name_val) = device_name {
+            status_guard.device_name = device_name_val;
+        }
+        
+        // 如果停止运行，不更新开始时间；如果开始运行，更新开始时间
+        if let Some(true) = running {
+            status_guard.start_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+        }
+    }
+    
+    // 自动发送状态更新
+    send_status_update();
 }
 
 // 通过 Channel 发送 HTTP 数据包

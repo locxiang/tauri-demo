@@ -261,7 +261,8 @@ export const useProxyStore = defineStore('proxy', () => {
 
       // 如果用户没有选择设备，传递 null 让后端自动选择
       const deviceToUse = selectedDevice.value || null;
-      await invoke('init_capture', { device_name: deviceToUse });
+      console.log('选择的网络设备', deviceToUse);
+      await invoke('init_capture', { deviceName: deviceToUse });
 
     } catch (err) {
       error.value = `启动失败: ${err}`;

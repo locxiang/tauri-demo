@@ -2,11 +2,11 @@
   <div class="h-screen overflow-hidden relative text-slate-200 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700">
     <!-- 粒子动画背景 -->
     <div class="absolute inset-0 z-0 pointer-events-none particles-bg animate-particle-float"></div>
-    
+
     <!-- 动态背景网格 -->
     <div class="absolute inset-0 z-[1] pointer-events-none grid-pattern animate-grid-float"></div>
     <div class="absolute inset-0 z-[2] pointer-events-none bg-gradient-to-br from-blue-500/5 via-purple-500/3 to-cyan-500/5 animate-overlay-pulse"></div>
-    
+
     <!-- 科技装饰元素 -->
     <div class="absolute inset-0 z-[3] pointer-events-none">
       <div class="absolute top-[10%] right-[15%] w-48 h-48 circuit-pattern opacity-60 animate-circuit-glow rotate-[15deg]"></div>
@@ -19,26 +19,26 @@
     <div class="h-15 flex items-center justify-between px-6 bg-gradient-to-r from-slate-900/95 to-slate-800/90 border-b border-blue-500/25 backdrop-blur-2xl relative z-[100] shadow-2xl">
       <!-- 动画扫描线 -->
       <div class="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-500/80 to-transparent animate-header-scan"></div>
-      
+
       <div class="flex items-center gap-6">
-        <button 
-          @click="goBack" 
+        <button
+          @click="goBack"
           class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group"
         >
           <div class="text-lg font-bold">←</div>
           <span class="text-sm">返回控制台</span>
           <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
         </button>
-        
+
         <div class="flex items-center gap-3">
           <div class="text-2xl animate-icon-glow">🔐</div>
           <h1 class="text-xl font-bold text-slate-200 font-mono tracking-wide">系统权限管理</h1>
         </div>
       </div>
-      
+
       <div class="flex items-center gap-4">
-        <button 
-          @click="handleRefresh" 
+        <button
+          @click="handleRefresh"
           :disabled="authStore.isLoading"
           class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
         >
@@ -46,9 +46,9 @@
           <span class="text-sm">{{ authStore.isLoading ? '刷新中...' : '刷新状态' }}</span>
           <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
         </button>
-        
-        <button 
-          @click="handleClearAll" 
+
+        <button
+          @click="handleClearAll"
           :disabled="authStore.isLoading"
           class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-md text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
         >
@@ -72,7 +72,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="grid grid-cols-4 gap-4">
           <!-- 活跃Token -->
           <div class="bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-lg border border-blue-500/15 rounded-lg p-4 hover:shadow-lg hover:shadow-blue-500/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group">
@@ -88,7 +88,7 @@
               <div class="text-slate-400 text-sm font-medium">活跃Token</div>
             </div>
           </div>
-          
+
           <!-- 过期Token -->
           <div class="bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-lg border border-blue-500/15 rounded-lg p-4 hover:shadow-lg hover:shadow-amber-500/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group">
             <div class="absolute inset-0 bg-gradient-to-r from-amber-500/5 to-orange-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -101,7 +101,7 @@
               <div class="text-slate-400 text-sm font-medium">过期Token</div>
             </div>
           </div>
-          
+
           <!-- 等待获取 -->
           <div class="bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-lg border border-blue-500/15 rounded-lg p-4 hover:shadow-lg hover:shadow-cyan-500/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group">
             <div class="absolute inset-0 bg-gradient-to-r from-cyan-500/5 to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -114,7 +114,7 @@
               <div class="text-slate-400 text-sm font-medium">等待获取</div>
             </div>
           </div>
-          
+
           <!-- 失败Token -->
           <div class="bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-lg border border-blue-500/15 rounded-lg p-4 hover:shadow-lg hover:shadow-red-500/20 hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden group">
             <div class="absolute inset-0 bg-gradient-to-r from-red-500/5 to-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -141,7 +141,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="bg-gradient-to-br from-slate-900/60 to-slate-800/40 backdrop-blur-lg border border-blue-500/10 rounded-lg overflow-hidden">
           <table class="w-full">
             <thead>
@@ -157,7 +157,7 @@
               <tr v-for="system in authStore.tokenStatuses" :key="system.system_id" class="hover:bg-blue-500/5 transition-colors duration-200">
                 <td class="px-4 py-3 border-b border-blue-500/5">{{ system.system_name }}</td>
                 <td class="px-4 py-3 border-b border-blue-500/5">
-                  <span 
+                  <span
                     :class="[
                       'inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide border transition-all duration-300 relative overflow-hidden',
                       getStatusClasses(system.status)
@@ -168,8 +168,8 @@
                   </span>
                 </td>
                 <td class="px-4 py-3 border-b border-blue-500/5">
-                  <span 
-                    v-if="system.status === 'Active'" 
+                  <span
+                    v-if="system.status === 'Active'"
                     :class="[
                       'font-semibold font-mono transition-all duration-300',
                       getRemainingTimeClass(system.system_id)
@@ -186,7 +186,7 @@
                   <span v-else class="text-slate-500 italic">未获取</span>
                 </td>
                 <td class="px-4 py-3 border-b border-blue-500/5">
-                  <button 
+                  <button
                     @click="handleClearSystem(system.system_id)"
                     :disabled="authStore.isLoading"
                     class="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded text-xs text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
@@ -213,7 +213,7 @@
             </div>
           </div>
         </div>
-        
+
         <div class="bg-gradient-to-br from-slate-900/60 to-slate-800/40 backdrop-blur-lg border border-blue-500/10 rounded-lg overflow-hidden">
           <table class="w-full">
             <thead>
@@ -229,7 +229,7 @@
                 <td class="px-4 py-3 border-b border-blue-500/5">{{ formatEventTime(event) }}</td>
                 <td class="px-4 py-3 border-b border-blue-500/5">{{ getEventSystemName(event) }}</td>
                 <td class="px-4 py-3 border-b border-blue-500/5">
-                  <span 
+                  <span
                     :class="[
                       'inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide border transition-all duration-300 relative overflow-hidden',
                       getEventClasses(event)
@@ -248,15 +248,15 @@
     </div>
 
     <!-- 错误信息 -->
-    <div 
-      v-if="authStore.error" 
+    <div
+      v-if="authStore.error"
       class="fixed top-5 right-5 bg-gradient-to-r from-red-500/90 to-pink-500/90 backdrop-blur-lg text-red-50 px-5 py-4 rounded-lg border border-red-500/50 shadow-2xl shadow-red-500/30 max-w-md z-[1000] animate-slide-in"
     >
       <div class="flex items-center gap-3">
         <span class="text-xl">⚠️</span>
         <span class="flex-1">{{ authStore.error }}</span>
-        <button 
-          @click="authStore.clearError" 
+        <button
+          @click="authStore.clearError"
           class="text-red-50 hover:text-red-200 text-2xl transition-colors duration-300"
         >
           ×
@@ -282,7 +282,7 @@ let timeUpdateInterval: number | null = null;
 // 生命周期
 onMounted(async () => {
   await authStore.initialize();
-  
+
   // 启动定时器，每秒更新当前时间
   timeUpdateInterval = window.setInterval(() => {
     currentTime.value = Math.floor(Date.now() / 1000);
@@ -368,18 +368,18 @@ const getEventClasses = (event: TokenEvent): string => {
 const getRemainingTimeText = (systemId: string): string => {
   // 找到对应的系统状态
   const systemStatus = authStore.tokenStatuses.find(status => status.system_id === systemId);
-  
+
   if (!systemStatus || !systemStatus.token_expires_at || systemStatus.status !== 'Active') {
     return '-';
   }
-  
+
   // 使用响应式的当前时间计算剩余时间
   const remaining = systemStatus.token_expires_at - currentTime.value;
-  
+
   if (remaining <= 0) {
     return '已过期';
   }
-  
+
   return authStore.formatRemainingTime(remaining);
 };
 
@@ -387,14 +387,14 @@ const getRemainingTimeText = (systemId: string): string => {
 const getRemainingTimeClass = (systemId: string): string => {
   // 找到对应的系统状态
   const systemStatus = authStore.tokenStatuses.find(status => status.system_id === systemId);
-  
+
   if (!systemStatus || !systemStatus.token_expires_at || systemStatus.status !== 'Active') {
     return 'text-slate-500';
   }
-  
+
   // 使用响应式的当前时间计算剩余时间
   const remaining = systemStatus.token_expires_at - currentTime.value;
-  
+
   if (remaining <= 0) {
     return 'text-red-400 animate-pulse';
   } else if (remaining <= 60) { // 少于1分钟
@@ -411,7 +411,7 @@ const getRemainingTimeClass = (systemId: string): string => {
 // 格式化事件时间
 const formatEventTime = (event: TokenEvent): string => {
   let timestamp: number;
-  
+
   if ('TokenAcquired' in event) {
     timestamp = event.TokenAcquired.acquired_at;
   } else if ('TokenExpired' in event) {
@@ -421,7 +421,7 @@ const formatEventTime = (event: TokenEvent): string => {
   } else {
     return '-';
   }
-  
+
   return new Date(timestamp * 1000).toLocaleString('zh-CN');
 };
 
@@ -469,6 +469,5 @@ const formatTokenAcquiredTime = (timestamp: number): string => {
 </script>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Exo+2:wght@300;400;500;600;700&display=swap');
 @import './animations.css';
-</style> 
+</style>
