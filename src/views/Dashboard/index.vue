@@ -78,7 +78,8 @@
         </div>
 
         <!-- 运行时长 -->
-        <div class="bg-slate-700 rounded-lg p-4 flex items-center space-x-3 border-l-4 border-green-500">
+        <div @click="openLogsPage"
+             class="bg-slate-700 hover:bg-slate-600 rounded-lg p-4 cursor-pointer transition-colors duration-200 flex items-center space-x-3 border-l-4 border-green-500">
           <div class="text-3xl">⏰</div>
           <div class="flex-1">
             <div class="text-sm font-medium text-white">运行时长</div>
@@ -111,7 +112,7 @@
 
       <div class="grid grid-cols-3 gap-4 h-[300px]">
         <div
-          v-for="module in automationModules.slice(0, 6)"
+          v-for="module in automationModules"
           :key="module.id"
           class="bg-slate-700 hover:bg-slate-600 rounded-lg p-6 cursor-pointer transition-all duration-200
                  flex flex-col items-center justify-center text-center space-y-3 group"
@@ -201,6 +202,8 @@
         <span class="ml-2">{{ new Date().getFullYear() }} All Rights Reserved</span>
       </div>
     </section>
+
+
   </div>
 </template>
 
@@ -386,6 +389,11 @@ const openProxyWindow = () => {
 // 打开系统权限页面
 const openPermissionsPage = () => {
   router.push('/permissions');
+};
+
+// 打开日志查看页面
+const openLogsPage = () => {
+  router.push('/logs');
 };
 
 // 检查系统权限和状态

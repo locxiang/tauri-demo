@@ -18,6 +18,35 @@ pub fn run() {
         })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_prevent_default::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .clear_targets() // 清除所有默认目标，避免产生多个日志文件
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("app_logs".to_string()),
+                    },
+                ))
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Stdout,
+                )) // 保留控制台输出用于调试
+                .max_file_size(50_000_000) // 50MB
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
+                .level(log::LevelFilter::Info)
+                .level_for("big_data_rpa_v4", log::LevelFilter::Debug)
+                .level_for("tauri_app_lib", log::LevelFilter::Debug) // 为应用模块设置更详细的日志级别
+                .format(|out, message, record| {
+                    out.finish(format_args!(
+                        "[{}][{}][{}][{}] {}",
+                        chrono::Local::now().format("%Y-%m-%d"),
+                        chrono::Local::now().format("%H:%M:%S"),
+                        record.level().to_string().to_uppercase(),
+                        record.module_path().unwrap_or("unknown"),
+                        message
+                    ))
+                })
+                .timezone_strategy(tauri_plugin_log::TimezoneStrategy::UseLocal)
+                .build()
+        )
         .invoke_handler(tauri::generate_handler![
             cmd::get_capture_status,
             cmd::set_status_channel,
@@ -34,7 +63,9 @@ pub fn run() {
             cmd::clear_system_token,
             cmd::clear_all_tokens,
             cmd::set_token_event_channel,
-            cmd::get_token_event_history
+            cmd::get_token_event_history,
+            // 日志系统命令
+            cmd::get_system_logs
         ])
         .setup(|_app| {// 初始化 AppHandle
             if let Err(e) = capture::init_app_handle(_app.handle().clone()) {
@@ -47,6 +78,11 @@ pub fn run() {
             } else {
                 info!("🔐 认证系统初始化成功");
             }
+            
+            // 测试日志持久化功能
+            info!("📝 日志系统已启动，日志将保存到应用程序日志目录");
+            log::debug!("调试信息：应用版本 v0.3.0");
+            log::warn!("这是一条警告信息的测试");
             
             {
                 if capture::has_capture_prerequisites() {

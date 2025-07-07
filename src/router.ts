@@ -5,6 +5,7 @@ import Dashboard from "./views/Dashboard/index.vue";
 import ProxyController from "./views/ProxyController/index.vue";
 import PacketDetailWindow from "./views/PacketWindows/index.vue";
 import SystemPermissions from "./views/SystemPermissions/index.vue";
+import SystemLogs from "./views/SystemLogs/index.vue";
 
 // 路由配置
 const routes = [
@@ -15,7 +16,7 @@ const routes = [
   },
   {
     path: "/proxy",
-    name: "ProxyController", 
+    name: "ProxyController",
     component: ProxyController
   },
   {
@@ -27,6 +28,16 @@ const routes = [
     path: "/permissions",
     name: "SystemPermissions",
     component: SystemPermissions
+  },
+  {
+    path: "/logs",
+    name: "SystemLogs",
+    component: SystemLogs
+  },
+  {
+    path: "/dashboard",
+    name: "DashboardPage",
+    component: Dashboard
   }
 ];
 
@@ -36,4 +47,4 @@ const router = createRouter({
   routes
 });
 
-export default router; 
+export default router;
