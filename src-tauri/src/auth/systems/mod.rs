@@ -7,7 +7,7 @@ pub mod registry;
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::capture::HttpRequest;
+use crate::capture::HttpPacket;
 use crate::auth::events;
 use log::{info, warn, debug};
 use regex::Regex;
@@ -20,8 +20,8 @@ pub trait SystemAuth {
     /// 获取系统名称
     fn system_name(&self) -> &str;
     
-    /// 处理HTTP请求，尝试提取token（核心方法）
-    fn process_http_request(&mut self, request: &HttpRequest) -> Result<()>;
+    /// 处理HTTP数据包，尝试提取token（核心方法）
+    fn process_http_request(&mut self, packet: &HttpPacket) -> Result<()>;
     
     /// 处理获取到的token
     fn handle_token(&mut self, token: &str, acquired_at: u64, expires_at: u64) -> Result<()>;
@@ -96,13 +96,13 @@ impl BaseSystem {
         }
     }
 
-    /// 从HTTP请求中提取token
-    fn extract_token_from_request(&self, request: &HttpRequest) -> Option<String> {
+    /// 从HTTP数据包中提取token
+    fn extract_token_from_request(&self, packet: &HttpPacket) -> Option<String> {
         debug!("🔎 系统[{}]开始提取token，Headers数量: {}", 
-               self.config.system_id, request.headers.len());
+               self.config.system_id, packet.headers.len());
         
         // 查找指定的header
-        let auth_header = request.headers
+        let auth_header = packet.headers
             .iter()
             .find(|(name, _)| name.eq_ignore_ascii_case(&self.config.header_name))
             .map(|(_, value)| value);
@@ -148,10 +148,18 @@ impl SystemAuth for BaseSystem {
         &self.config.system_name
     }
     
-    fn process_http_request(&mut self, request: &HttpRequest) -> Result<()> {
-        let url = build_url(request);
+    fn process_http_request(&mut self, packet: &HttpPacket) -> Result<()> {
+        // 只处理HTTP请求，跳过响应
+        if packet.packet_type != "request" {
+            debug!("⏭️ 系统[{}]跳过HTTP{}处理", self.config.system_id, packet.packet_type);
+            return Ok(());
+        }
+        
+        let url = build_url(packet);
         debug!("🎯 系统[{}]开始处理HTTP请求: {} {}", 
-               self.config.system_id, request.method, url);
+               self.config.system_id, 
+               packet.method.as_ref().unwrap_or(&"UNKNOWN".to_string()), 
+               url);
         
         // 检查URL是否匹配
         if !self.matches_url(&url) {
@@ -162,7 +170,7 @@ impl SystemAuth for BaseSystem {
         info!("🎯 系统[{}]检测到匹配的URL: {}", self.config.system_id, url);
         
         // 提取token
-        let token = match self.extract_token_from_request(request) {
+        let token = match self.extract_token_from_request(packet) {
             Some(token) => {
                 debug!("📨 系统[{}]成功提取到token", self.config.system_id);
                 token
@@ -342,15 +350,17 @@ impl TokenInfo {
 }
 
 /// 构建完整URL（公共方法）
-pub fn build_url(request: &HttpRequest) -> String {
-    let host = if !request.host.is_empty() {
-        request.host.clone()
+pub fn build_url(packet: &HttpPacket) -> String {
+    let host = if !packet.host.is_empty() {
+        packet.host.clone()
     } else {
-        format!("{}:{}", request.dst_ip, request.dst_port)
+        format!("{}:{}", packet.dst_ip, packet.dst_port)
     };
     
-    let protocol = if request.dst_port == 443 { "https" } else { "http" };
-    format!("{}://{}{}", protocol, host, request.path)
+    let protocol = if packet.dst_port == 443 { "https" } else { "http" };
+    let default_path = "/".to_string();
+    let path = packet.path.as_ref().unwrap_or(&default_path);
+    format!("{}://{}{}", protocol, host, path)
 }
 
 // 重新导出系统注册相关功能

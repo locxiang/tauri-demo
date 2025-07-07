@@ -1,0 +1,10 @@
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 响应箭头向下 -->
+  <path d="M10 18L6 14H8V8H12V14H14L10 18Z" fill="currentColor" opacity="0.8"/>
+  <!-- 服务器图标 -->
+  <rect x="2" y="2" width="16" height="4" rx="1" fill="currentColor" opacity="0.6"/>
+  <rect x="4" y="3.5" width="2" height="1" rx="0.5" fill="white"/>
+  <rect x="7" y="3.5" width="2" height="1" rx="0.5" fill="white"/>
+  <!-- 连接线 -->
+  <path d="M10 6L10 8" stroke="currentColor" stroke-width="1.5" opacity="0.4"/>
+</svg> 

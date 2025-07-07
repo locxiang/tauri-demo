@@ -4,7 +4,7 @@ pub mod events;
 pub mod manager;
 
 use anyhow::Result;
-use crate::capture::HttpRequest;
+use crate::capture::HttpPacket;
 use log::{info, debug, error};
 
 // 重新导出主要类型
@@ -35,20 +35,23 @@ pub fn init_auth_system() -> Result<()> {
     Ok(())
 }
 
-// 处理来自抓包模块的HTTP请求
-pub fn process_http_request(request: &HttpRequest) -> Result<()> {
-    info!("🎯 auth模块收到HTTP请求: {} {} (来源: {}:{})", 
-           request.method, request.path, request.src_ip, request.src_port);
+// 处理来自抓包模块的HTTP数据包
+pub fn process_http_packet(packet: &HttpPacket) -> Result<()> {
+    info!("🎯 auth模块收到HTTP{}: {} {} (来源: {}:{})", 
+           if packet.packet_type == "request" { "请求" } else { "响应" },
+           packet.method.as_ref().unwrap_or(&"UNKNOWN".to_string()),
+           packet.path.as_ref().unwrap_or(&"/".to_string()),
+           packet.src_ip, packet.src_port);
     
     info!("🔍 开始调用manager::process_incoming_request...");
-    let result = manager::process_incoming_request(request);
+    let result = manager::process_incoming_request(packet);
     
     match &result {
         Ok(_) => {
-            info!("✅ auth模块处理HTTP请求成功");
+            info!("✅ auth模块处理HTTP{}成功", if packet.packet_type == "request" { "请求" } else { "响应" });
         }
         Err(e) => {
-            error!("❌ auth模块处理HTTP请求失败: {}", e);
+            error!("❌ auth模块处理HTTP{}失败: {}", if packet.packet_type == "request" { "请求" } else { "响应" }, e);
         }
     }
     

@@ -19,16 +19,16 @@ pub fn set_status_channel(channel: Channel<capture::CaptureStatus>) -> Result<()
     capture::set_status_channel(channel).map_err(|e| e.to_string())
 }
 
-// 设置 HTTP 请求通道
+// 设置 HTTP 数据包通道
 #[tauri::command]
-pub fn set_http_channel(channel: Channel<capture::HttpRequest>) -> Result<(), String> {
+pub fn set_http_channel(channel: Channel<capture::HttpPacket>) -> Result<(), String> {
     capture::set_http_channel(channel).map_err(|e| e.to_string())
 }
 
 // 初始化数据包捕获
 #[tauri::command]
-pub fn init_capture() -> Result<(), String> {
-    capture::init_capture().map_err(|e| e.to_string())
+pub fn init_capture(device_name: Option<String>) -> Result<(), String> {
+    capture::init_capture(device_name).map_err(|e| e.to_string())
 }
 
 // 停止数据包捕获

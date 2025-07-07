@@ -17,7 +17,7 @@ static CAPTURE_THREAD: OnceCell<Arc<Mutex<Option<thread::JoinHandle<()>>>>> = On
 static CAPTURE_STATUS: OnceCell<Arc<Mutex<CaptureStatus>>> = OnceCell::new();
 static APP_HANDLE: OnceCell<tauri::AppHandle> = OnceCell::new();
 static STATUS_CHANNEL: OnceCell<Arc<Mutex<Option<Channel<CaptureStatus>>>>> = OnceCell::new();
-static HTTP_CHANNEL: OnceCell<Arc<Mutex<Option<Channel<HttpRequest>>>>> = OnceCell::new();
+static HTTP_CHANNEL: OnceCell<Arc<Mutex<Option<Channel<HttpPacket>>>>> = OnceCell::new();
 
 // 捕获状态
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,20 +28,30 @@ pub struct CaptureStatus {
     pub start_time: u64,
 }
 
-// HTTP 请求结构
+// HTTP 数据包结构（统一处理请求和响应）
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HttpRequest {
+pub struct HttpPacket {
     pub id: u64,
     pub timestamp: u64,
     pub src_ip: String,
     pub src_port: u16,
     pub dst_ip: String,
     pub dst_port: u16,
-    pub method: String,
-    pub path: String,
+    pub packet_type: String, // "request" 或 "response"
+    
+    // 请求字段
+    pub method: Option<String>,
+    pub path: Option<String>,
+    
+    // 响应字段
+    pub status_code: Option<u16>,
+    pub status_text: Option<String>,
+    
+    // 通用字段
     pub version: String,
     pub host: String,
     pub content_type: String,
+    pub content_length: Option<usize>,
     pub headers: Vec<(String, String)>,
     pub body: String,
 }
@@ -78,8 +88,8 @@ pub fn set_status_channel(channel: Channel<CaptureStatus>) -> Result<()> {
     }
 }
 
-// 设置 HTTP 请求通道
-pub fn set_http_channel(channel: Channel<HttpRequest>) -> Result<()> {
+// 设置 HTTP 数据包通道
+pub fn set_http_channel(channel: Channel<HttpPacket>) -> Result<()> {
     if let Some(channels) = HTTP_CHANNEL.get() {
         let mut guard = channels.lock().unwrap();
         *guard = Some(channel);
@@ -88,12 +98,12 @@ pub fn set_http_channel(channel: Channel<HttpRequest>) -> Result<()> {
         let channels = Arc::new(Mutex::new(Some(channel)));
         HTTP_CHANNEL
             .set(channels)
-            .map_err(|_| anyhow!("已经初始化过 HTTP 请求通道"))?;
+            .map_err(|_| anyhow!("已经初始化过 HTTP 数据包通道"))?;
         Ok(())
     }
 }
 
-pub fn init_capture() -> Result<()> {
+pub fn init_capture(device_name: Option<String>) -> Result<()> {
     // 如果已经在运行，先停止
     if let Some(status) = CAPTURE_STATUS.get() {
         let status_guard = status.lock().unwrap();
@@ -146,7 +156,7 @@ pub fn init_capture() -> Result<()> {
         let status = Arc::new(Mutex::new(CaptureStatus {
             running: true,
             message: "正在初始化...".to_string(),
-            device_name: "未知".to_string(),
+            device_name: "".to_string(),
             start_time: SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
@@ -168,7 +178,7 @@ pub fn init_capture() -> Result<()> {
     if HTTP_CHANNEL.get().is_none() {
         HTTP_CHANNEL
             .set(Arc::new(Mutex::new(None)))
-            .map_err(|_| anyhow!("已经初始化过 HTTP 请求通道存储"))?;
+            .map_err(|_| anyhow!("已经初始化过 HTTP 数据包通道存储"))?;
     }
 
     // 清理旧的线程句柄（如果存在）
@@ -186,7 +196,7 @@ pub fn init_capture() -> Result<()> {
     let running_clone = running.clone();
     let status_clone = status.clone();
     let capture_thread = thread::spawn(move || {
-        if let Err(e) = start_capture(running_clone, status_clone) {
+        if let Err(e) = start_capture(running_clone, status_clone, device_name) {
             error!("数据包捕获出错: {}", e);
             if let Some(status) = CAPTURE_STATUS.get() {
                 let mut status_guard = status.lock().unwrap();
@@ -207,7 +217,7 @@ pub fn init_capture() -> Result<()> {
     Ok(())
 }
 
-fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>) -> Result<()> {
+fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, device_name: Option<String>) -> Result<()> {
     info!("开始初始化数据包捕获...");
     
     // 更新状态
@@ -243,18 +253,42 @@ fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>) ->
         return Err(err);
     }
     
-    // 尝试找到一个非回环设备
-    let device = match list.iter().find(|d| !d.flags.is_loopback()) {
-        Some(device) => device,
-        None => {
-            let err = anyhow!("没有找到非回环网络设备");
-            {
-                let mut status_guard = status.lock().unwrap();
-                status_guard.running = false;
-                status_guard.message = err.to_string();
+    // 根据指定的设备名称查找设备，或者自动选择非回环设备
+    let device = if let Some(ref name) = device_name {
+        // 查找指定名称的设备
+        match list.iter().find(|d| d.name == *name) {
+            Some(device) => {
+                info!("找到指定的网络设备: {}", name);
+                device
+            },
+            None => {
+                let err = anyhow!("未找到指定的网络设备: {}", name);
+                {
+                    let mut status_guard = status.lock().unwrap();
+                    status_guard.running = false;
+                    status_guard.message = err.to_string();
+                }
+                send_status_update();
+                return Err(err);
             }
-            send_status_update();
-            return Err(err);
+        }
+    } else {
+        // 自动选择第一个非回环设备
+        match list.iter().find(|d| !d.flags.is_loopback()) {
+            Some(device) => {
+                info!("自动选择非回环网络设备: {}", device.name);
+                device
+            },
+            None => {
+                let err = anyhow!("没有找到非回环网络设备");
+                {
+                    let mut status_guard = status.lock().unwrap();
+                    status_guard.running = false;
+                    status_guard.message = err.to_string();
+                }
+                send_status_update();
+                return Err(err);
+            }
         }
     };
     
@@ -309,11 +343,11 @@ fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>) ->
     {
         let mut status_guard = status.lock().unwrap();
         status_guard.running = true;
-        status_guard.message = "正在捕获 HTTP 请求...".to_string();
+        status_guard.message = "正在捕获 HTTP 请求和响应...".to_string();
     }
     send_status_update();
     
-    info!("开始捕获 HTTP 请求数据包...");
+    info!("开始捕获 HTTP 请求和响应数据包...");
 
     // 简化的捕获循环
     while running.load(Ordering::Relaxed) {
@@ -371,59 +405,104 @@ fn process_packet(sliced: SlicedPacket) {
 
     // 只处理有效载荷
     if !payload.is_empty() {
-        // 检查是否是 HTTP 请求
-        if is_http_request(payload) {
-            // 解析 HTTP 请求
-            if let Some(mut http_request) = parse_http_request(payload) {
+        // 检查是否是 HTTP 数据包（请求或响应）
+        if let Some(packet_type) = detect_http_packet_type(payload) {
+            // 根据类型解析 HTTP 数据包
+            let mut http_packet = match packet_type.as_str() {
+                "request" => parse_http_request(payload),
+                "response" => parse_http_response(payload),
+                _ => None,
+            };
+            
+            if let Some(ref mut packet) = http_packet {
                 // 添加网络信息
                 let timestamp = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_secs();
                 
-                http_request.timestamp = timestamp;
-                http_request.src_ip = src_ip.to_string();
-                http_request.src_port = src_port;
-                http_request.dst_ip = dst_ip.to_string();
-                http_request.dst_port = dst_port;
+                packet.timestamp = timestamp;
+                packet.src_ip = src_ip.to_string();
+                packet.src_port = src_port;
+                packet.dst_ip = dst_ip.to_string();
+                packet.dst_port = dst_port;
+                packet.packet_type = packet_type.clone();
                 
                 // 生成唯一ID
-                http_request.id = timestamp * 1000 + (src_port as u64 % 1000);
+                packet.id = timestamp * 1000 + (src_port as u64 % 1000);
                 
-                // 输出格式化的 HTTP 请求信息到日志
-                info!("捕获 HTTP 请求: {}:{} -> {}:{}", src_ip, src_port, dst_ip, dst_port);
-                info!("请求方法: {}", http_request.method);
-                info!("请求路径: {}", http_request.path);
-                
-                // 🔐 新增：将HTTP请求发送给认证系统处理
-                info!("📨 发送HTTP请求到认证系统处理...");
-                if let Err(e) = crate::auth::process_http_request(&http_request) {
-                    error!("❌ 认证系统处理HTTP请求失败: {}", e);
-                } else {
-                    debug!("✅ 认证系统处理HTTP请求成功");
+                // 输出格式化的 HTTP 信息到日志
+                match packet_type.as_str() {
+                    "request" => {
+                        info!("捕获 HTTP 请求: {}:{} -> {}:{}", src_ip, src_port, dst_ip, dst_port);
+                        if let Some(method) = &packet.method {
+                            info!("请求方法: {}", method);
+                        }
+                        if let Some(path) = &packet.path {
+                            info!("请求路径: {}", path);
+                        }
+                    }
+                    "response" => {
+                        info!("捕获 HTTP 响应: {}:{} -> {}:{}", src_ip, src_port, dst_ip, dst_port);
+                        if let Some(status_code) = packet.status_code {
+                            info!("响应状态码: {}", status_code);
+                        }
+                        if let Some(status_text) = &packet.status_text {
+                            info!("响应状态: {}", status_text);
+                        }
+                    }
+                    _ => {}
                 }
                 
-                // 发送 HTTP 请求到前端
-                send_http_request(http_request);
+                // 🔐 新增：将HTTP数据包发送给认证系统处理
+                info!("📨 发送HTTP{}到认证系统处理...", if packet_type == "request" { "请求" } else { "响应" });
+                if let Err(e) = crate::auth::process_http_packet(&packet) {
+                    error!("❌ 认证系统处理HTTP{}失败: {}", if packet_type == "request" { "请求" } else { "响应" }, e);
+                } else {
+                    debug!("✅ 认证系统处理HTTP{}成功", if packet_type == "request" { "请求" } else { "响应" });
+                }
+                
+                // 发送 HTTP 数据包到前端
+                send_http_packet(packet.clone());
             }
         }
     }
 }
 
-// 检查是否是 HTTP 请求
-fn is_http_request(data: &[u8]) -> bool {
+// 检测 HTTP 数据包类型（请求或响应）
+fn detect_http_packet_type(data: &[u8]) -> Option<String> {
     if data.len() < 4 {
-        return false;
+        return None;
     }
 
-    data.starts_with(b"GET ")
+    // 检查是否是 HTTP 请求
+    if data.starts_with(b"GET ")
         || data.starts_with(b"POST ")
         || data.starts_with(b"PUT ")
         || data.starts_with(b"DELETE ")
+        || data.starts_with(b"HEAD ")
+        || data.starts_with(b"OPTIONS ")
+        || data.starts_with(b"PATCH ")
+        || data.starts_with(b"TRACE ")
+        || data.starts_with(b"CONNECT ")
+    {
+        return Some("request".to_string());
+    }
+
+    // 检查是否是 HTTP 响应
+    if data.starts_with(b"HTTP/1.0 ")
+        || data.starts_with(b"HTTP/1.1 ")
+        || data.starts_with(b"HTTP/2.0 ")
+        || data.starts_with(b"HTTP/3.0 ")
+    {
+        return Some("response".to_string());
+    }
+
+    None
 }
 
 // 解析 HTTP 请求
-fn parse_http_request(data: &[u8]) -> Option<HttpRequest> {
+fn parse_http_request(data: &[u8]) -> Option<HttpPacket> {
     let http_text = String::from_utf8_lossy(data);
     let lines: Vec<&str> = http_text.split("\r\n").collect();
     
@@ -443,6 +522,7 @@ fn parse_http_request(data: &[u8]) -> Option<HttpRequest> {
     
     let mut host = String::new();
     let mut content_type = String::new();
+    let mut content_length = None;
     let mut headers = Vec::new();
     let mut body = String::new();
     
@@ -462,10 +542,15 @@ fn parse_http_request(data: &[u8]) -> Option<HttpRequest> {
                 let header_value = parts[1].to_string();
                 
                 // 提取特定的头信息
-                if header_name.eq_ignore_ascii_case("Host") {
-                    host = header_value.clone();
-                } else if header_name.eq_ignore_ascii_case("Content-Type") {
-                    content_type = header_value.clone();
+                match header_name.to_lowercase().as_str() {
+                    "host" => host = header_value.clone(),
+                    "content-type" => content_type = header_value.clone(),
+                    "content-length" => {
+                        if let Ok(len) = header_value.parse::<usize>() {
+                            content_length = Some(len);
+                        }
+                    }
+                    _ => {}
                 }
                 
                 headers.push((header_name, header_value));
@@ -478,18 +563,107 @@ fn parse_http_request(data: &[u8]) -> Option<HttpRequest> {
         body = lines[body_start..].join("\r\n");
     }
     
-    Some(HttpRequest {
+    Some(HttpPacket {
         id: 0, // 将在 process_packet 中设置
         timestamp: 0, // 将在 process_packet 中设置
         src_ip: String::new(), // 将在 process_packet 中设置
         src_port: 0, // 将在 process_packet 中设置
         dst_ip: String::new(), // 将在 process_packet 中设置
         dst_port: 0, // 将在 process_packet 中设置
-        method,
-        path,
+        packet_type: "request".to_string(),
+        method: Some(method),
+        path: Some(path),
+        status_code: None,
+        status_text: None,
         version,
         host,
         content_type,
+        content_length,
+        headers,
+        body,
+    })
+}
+
+// 解析 HTTP 响应
+fn parse_http_response(data: &[u8]) -> Option<HttpPacket> {
+    let http_text = String::from_utf8_lossy(data);
+    let lines: Vec<&str> = http_text.split("\r\n").collect();
+    
+    if lines.is_empty() {
+        return None;
+    }
+    
+    // 解析状态行
+    let status_line_parts: Vec<&str> = lines[0].splitn(3, ' ').collect();
+    if status_line_parts.len() < 3 {
+        return None;
+    }
+    
+    let version = status_line_parts[0].to_string();
+    let status_code = match status_line_parts[1].parse::<u16>() {
+        Ok(code) => code,
+        Err(_) => return None,
+    };
+    let status_text = status_line_parts[2].to_string();
+    
+    let host = String::new();
+    let mut content_type = String::new();
+    let mut content_length = None;
+    let mut headers = Vec::new();
+    let mut body = String::new();
+    
+    // 找到响应头和响应体的分隔位置
+    let mut body_start = 0;
+    for (i, line) in lines.iter().enumerate() {
+        if line.is_empty() {
+            body_start = i + 1;
+            break;
+        }
+        
+        // 解析响应头
+        if i > 0 {
+            let parts: Vec<&str> = line.splitn(2, ": ").collect();
+            if parts.len() == 2 {
+                let header_name = parts[0].to_string();
+                let header_value = parts[1].to_string();
+                
+                // 提取特定的头信息
+                match header_name.to_lowercase().as_str() {
+                    "content-type" => content_type = header_value.clone(),
+                    "content-length" => {
+                        if let Ok(len) = header_value.parse::<usize>() {
+                            content_length = Some(len);
+                        }
+                    }
+                    _ => {}
+                }
+                
+                headers.push((header_name, header_value));
+            }
+        }
+    }
+    
+    // 提取响应体
+    if body_start < lines.len() {
+        body = lines[body_start..].join("\r\n");
+    }
+    
+    Some(HttpPacket {
+        id: 0, // 将在 process_packet 中设置
+        timestamp: 0, // 将在 process_packet 中设置
+        src_ip: String::new(), // 将在 process_packet 中设置
+        src_port: 0, // 将在 process_packet 中设置
+        dst_ip: String::new(), // 将在 process_packet 中设置
+        dst_port: 0, // 将在 process_packet 中设置
+        packet_type: "response".to_string(),
+        method: None,
+        path: None,
+        status_code: Some(status_code),
+        status_text: Some(status_text),
+        version,
+        host,
+        content_type,
+        content_length,
         headers,
         body,
     })
@@ -549,7 +723,7 @@ pub fn get_capture_status() -> CaptureStatus {
         CaptureStatus {
             running: false,
             message: "捕获未初始化".to_string(),
-            device_name: "未知".to_string(),
+            device_name: "".to_string(),
             start_time: 0,
         }
     }
@@ -569,14 +743,16 @@ fn send_status_update() {
     }
 }
 
-// 通过 Channel 发送 HTTP 请求
-fn send_http_request(request: HttpRequest) {
+// 通过 Channel 发送 HTTP 数据包
+fn send_http_packet(packet: HttpPacket) {
     if let Some(channels) = HTTP_CHANNEL.get() {
         let guard = channels.lock().unwrap();
         if let Some(channel) = &*guard {
-            info!("通过 Channel 发送 HTTP 请求: {:?}", request);
-            if let Err(e) = channel.send(request) {
-                error!("发送 HTTP 请求失败: {}", e);
+            info!("通过 Channel 发送 HTTP {}: {:?}", 
+                if packet.packet_type == "request" { "请求" } else { "响应" }, 
+                packet);
+            if let Err(e) = channel.send(packet) {
+                error!("发送 HTTP 数据包失败: {}", e);
             }
         }
     }

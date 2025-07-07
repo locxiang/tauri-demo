@@ -48,9 +48,11 @@ const hasHttpDetails = computed(() => {
   try {
     if (!props.packet?.http) return false;
     return !!(
-      props.packet.http.method || 
-      props.packet.http.url || 
-      props.packet.http.host
+      props.packet.http.method ||
+      props.packet.http.path ||
+      props.packet.http.host ||
+      props.packet.http.status_code ||
+      props.packet.http.status_text
     );
   } catch (err) {
     console.error('计算 hasHttpDetails 错误:', err);
@@ -77,6 +79,9 @@ const hasBody = computed(() => {
     return false;
   }
 });
+
+const isRequest = computed(() => props.packet?.type === 'request');
+const isResponse = computed(() => props.packet?.type === 'response');
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -105,6 +110,24 @@ const getTypeColor = (type: string): string => {
   if (type === 'response') return 'text-green-400';
   return 'text-gray-400';
 };
+
+const getStatusCodeColor = (statusCode?: number): string => {
+  if (!statusCode) return 'text-gray-400';
+
+  if (statusCode >= 200 && statusCode < 300) return 'text-green-400';
+  if (statusCode >= 300 && statusCode < 400) return 'text-yellow-400';
+  if (statusCode >= 400 && statusCode < 500) return 'text-orange-400';
+  if (statusCode >= 500) return 'text-red-400';
+
+  return 'text-gray-400';
+};
+
+const formatFullUrl = computed(() => {
+  if (isRequest.value && props.packet.http.host && props.packet.http.path) {
+    return `${props.packet.http.host}${props.packet.http.path}`;
+  }
+  return '';
+});
 </script>
 
 <template>
@@ -124,15 +147,23 @@ const getTypeColor = (type: string): string => {
       <div class="bg-gray-800 border-b border-gray-700 p-4">
         <div class="flex items-center justify-between">
           <div>
-            <h1 class="text-xl font-semibold">数据包 #{{ packet.id || '未知' }}</h1>
+            <h1 class="text-xl font-semibold">
+              {{ isRequest ? 'HTTP 请求' : 'HTTP 响应' }} #{{ packet.id || '未知' }}
+            </h1>
             <p class="text-sm text-gray-400">{{ formatTime(packet.timestamp) }}</p>
           </div>
           <div class="flex items-center space-x-3">
             <span :class="['px-3 py-1 text-sm rounded', getTypeColor(packet.type)]">
-              {{ packet.type || '未知类型' }}
+              {{ isRequest ? '📤 请求' : '📥 响应' }}
             </span>
-            <span v-if="packet.http?.method" :class="['px-3 py-1 text-sm font-bold rounded bg-gray-700', getMethodColor(packet.http.method)]">
+            <!-- 显示方法（请求）或状态码（响应） -->
+            <span v-if="isRequest && packet.http.method"
+                  :class="['px-3 py-1 text-sm font-bold rounded bg-gray-700', getMethodColor(packet.http.method)]">
               {{ packet.http.method }}
+            </span>
+            <span v-else-if="isResponse && packet.http.status_code"
+                  :class="['px-3 py-1 text-sm font-bold rounded bg-gray-700', getStatusCodeColor(packet.http.status_code)]">
+              {{ packet.http.status_code }} {{ packet.http.status_text }}
             </span>
           </div>
         </div>
@@ -141,52 +172,52 @@ const getTypeColor = (type: string): string => {
       <!-- 简化的选项卡 -->
       <div class="bg-gray-800 border-b border-gray-700">
         <div class="flex px-4">
-          <button 
+          <button
             @click="activeTab = 'overview'"
             :class="[
               'px-4 py-3 text-sm border-b-2 transition-colors',
-              activeTab === 'overview' 
-                ? 'border-blue-500 text-blue-400' 
+              activeTab === 'overview'
+                ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-gray-400 hover:text-white'
             ]"
           >
-            概览 ({{ activeTab === 'overview' ? '当前' : '点击' }})
+            概览
           </button>
-          <button 
+          <button
             v-if="hasHttpDetails"
             @click="activeTab = 'http'"
             :class="[
               'px-4 py-3 text-sm border-b-2 transition-colors',
-              activeTab === 'http' 
-                ? 'border-blue-500 text-blue-400' 
+              activeTab === 'http'
+                ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-gray-400 hover:text-white'
             ]"
           >
             HTTP 详情
           </button>
-          <button 
+          <button
             v-if="hasHeaders"
             @click="activeTab = 'headers'"
             :class="[
               'px-4 py-3 text-sm border-b-2 transition-colors',
-              activeTab === 'headers' 
-                ? 'border-blue-500 text-blue-400' 
+              activeTab === 'headers'
+                ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-gray-400 hover:text-white'
             ]"
           >
-            请求头
+            {{ isRequest ? '请求头' : '响应头' }}
           </button>
-          <button 
+          <button
             v-if="hasBody"
             @click="activeTab = 'body'"
             :class="[
               'px-4 py-3 text-sm border-b-2 transition-colors',
-              activeTab === 'body' 
-                ? 'border-blue-500 text-blue-400' 
+              activeTab === 'body'
+                ? 'border-blue-500 text-blue-400'
                 : 'border-transparent text-gray-400 hover:text-white'
             ]"
           >
-            请求体
+            {{ isRequest ? '请求体' : '响应体' }}
           </button>
         </div>
       </div>
@@ -200,26 +231,60 @@ const getTypeColor = (type: string): string => {
              <div v-if="hasHttpDetails" class="bg-gray-800 rounded p-4">
               <h3 class="text-lg font-semibold mb-3 text-yellow-400">HTTP 信息</h3>
               <div class="space-y-2">
-                <div v-if="packet.http?.method" class="flex justify-between">
-                  <span class="text-gray-400">方法:</span>
+                <!-- 请求特定信息 -->
+                <template v-if="isRequest">
+                  <div v-if="packet.http.method" class="flex justify-between">
+                    <span class="text-gray-400">请求方法:</span>
                   <span :class="['font-bold', getMethodColor(packet.http.method)]">{{ packet.http.method }}</span>
                 </div>
-                <div v-if="packet.http?.host" class="flex justify-between">
+                  <div v-if="packet.http.path" class="flex justify-between">
+                    <span class="text-gray-400">请求路径:</span>
+                    <span class="font-mono text-sm">{{ packet.http.path }}</span>
+                  </div>
+                </template>
+                <!-- 响应特定信息 -->
+                <template v-else-if="isResponse">
+                  <div v-if="packet.http.status_code" class="flex justify-between">
+                    <span class="text-gray-400">状态码:</span>
+                    <span :class="['font-bold', getStatusCodeColor(packet.http.status_code)]">
+                      {{ packet.http.status_code }}
+                    </span>
+                  </div>
+                  <div v-if="packet.http.status_text" class="flex justify-between">
+                    <span class="text-gray-400">状态文本:</span>
+                    <span class="font-mono text-sm">{{ packet.http.status_text }}</span>
+                  </div>
+                </template>
+                <!-- 通用信息 -->
+                <div v-if="packet.http.host" class="flex justify-between">
                   <span class="text-gray-400">主机:</span>
                   <span class="font-mono text-sm">{{ packet.http.host }}</span>
                 </div>
-                <div v-if="packet.http?.url">
+                <div v-if="packet.http.version" class="flex justify-between">
+                  <span class="text-gray-400">HTTP版本:</span>
+                  <span class="font-mono text-sm">{{ packet.http.version }}</span>
+                </div>
+                <div v-if="packet.http.content_type" class="flex justify-between">
+                  <span class="text-gray-400">内容类型:</span>
+                  <span class="font-mono text-sm">{{ packet.http.content_type }}</span>
+                </div>
+                <div v-if="packet.http.content_length" class="flex justify-between">
+                  <span class="text-gray-400">内容长度:</span>
+                  <span class="font-mono text-sm">{{ packet.http.content_length }} 字节</span>
+                </div>
+                <!-- 完整URL（仅请求） -->
+                <div v-if="formatFullUrl">
                   <div class="flex justify-between items-center mb-2">
-                    <span class="text-gray-400">URL:</span>
-                    <button 
-                      @click="copyToClipboard(`${packet.http?.host}${packet.http?.url}`)"
+                    <span class="text-gray-400">完整URL:</span>
+                    <button
+                      @click="copyToClipboard(formatFullUrl)"
                       class="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 rounded"
                     >
                       复制
                     </button>
                   </div>
                   <div class="bg-gray-900 p-2 rounded font-mono text-sm break-all">
-                    {{ packet.http.host }}{{ packet.http.url }}
+                    {{ formatFullUrl }}
                   </div>
                 </div>
               </div>
@@ -238,7 +303,9 @@ const getTypeColor = (type: string): string => {
                 </div>
                 <div class="flex justify-between">
                   <span class="text-gray-400">类型:</span>
-                  <span :class="getTypeColor(packet.type)">{{ packet.type || '未知' }}</span>
+                  <span :class="getTypeColor(packet.type)">
+                    {{ isRequest ? '📤 HTTP 请求' : '📥 HTTP 响应' }}
+                  </span>
                 </div>
                 <div class="flex justify-between">
                   <span class="text-gray-400">协议:</span>
@@ -265,8 +332,6 @@ const getTypeColor = (type: string): string => {
                 </div>
               </div>
             </div>
-
-           
           </div>
         </div>
 
@@ -275,43 +340,82 @@ const getTypeColor = (type: string): string => {
           <div class="bg-gray-800 rounded p-4">
             <h3 class="text-lg font-semibold mb-3 text-blue-400">HTTP 详情</h3>
             <div class="space-y-3">
-              <div v-if="packet.http?.method">
+              <!-- 请求特定字段 -->
+              <template v-if="isRequest">
+                <div v-if="packet.http.method">
                 <label class="block text-sm text-gray-400 mb-1">请求方法</label>
                 <span :class="['inline-block px-2 py-1 rounded', getMethodColor(packet.http.method)]">
                   {{ packet.http.method }}
                 </span>
               </div>
-              <div v-if="packet.http?.url">
+                <div v-if="packet.http.path">
                 <label class="block text-sm text-gray-400 mb-1">请求路径</label>
                 <div class="bg-gray-900 p-2 rounded font-mono text-sm">
-                  {{ packet.http.url }}
+                    {{ packet.http.path }}
+                  </div>
+                </div>
+              </template>
+              <!-- 响应特定字段 -->
+              <template v-else-if="isResponse">
+                <div v-if="packet.http.status_code">
+                  <label class="block text-sm text-gray-400 mb-1">状态码</label>
+                  <span :class="['inline-block px-2 py-1 rounded', getStatusCodeColor(packet.http.status_code)]">
+                    {{ packet.http.status_code }}
+                  </span>
+                </div>
+                <div v-if="packet.http.status_text">
+                  <label class="block text-sm text-gray-400 mb-1">状态文本</label>
+                  <div class="bg-gray-900 p-2 rounded font-mono text-sm">
+                    {{ packet.http.status_text }}
                 </div>
               </div>
-              <div v-if="packet.http?.host">
+              </template>
+              <!-- 通用字段 -->
+              <div v-if="packet.http.host">
                 <label class="block text-sm text-gray-400 mb-1">主机地址</label>
                 <div class="bg-gray-900 p-2 rounded font-mono text-sm">
                   {{ packet.http.host }}
+                </div>
+              </div>
+              <div v-if="packet.http.version">
+                <label class="block text-sm text-gray-400 mb-1">HTTP版本</label>
+                <div class="bg-gray-900 p-2 rounded font-mono text-sm">
+                  {{ packet.http.version }}
+                </div>
+              </div>
+              <div v-if="packet.http.content_type">
+                <label class="block text-sm text-gray-400 mb-1">内容类型</label>
+                <div class="bg-gray-900 p-2 rounded font-mono text-sm">
+                  {{ packet.http.content_type }}
+                </div>
+              </div>
+              <div v-if="packet.http.content_length">
+                <label class="block text-sm text-gray-400 mb-1">内容长度</label>
+                <div class="bg-gray-900 p-2 rounded font-mono text-sm">
+                  {{ packet.http.content_length }} 字节
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 请求头 -->
+        <!-- 请求头/响应头 -->
         <div v-if="activeTab === 'headers' && hasHeaders">
           <div class="bg-gray-800 rounded p-4">
             <div class="flex justify-between items-center mb-3">
-              <h3 class="text-lg font-semibold text-blue-400">HTTP 请求头</h3>
-              <button 
-                @click="copyToClipboard(JSON.stringify(packet.http?.headers, null, 2))"
+              <h3 class="text-lg font-semibold text-blue-400">
+                {{ isRequest ? 'HTTP 请求头' : 'HTTP 响应头' }}
+              </h3>
+              <button
+                @click="copyToClipboard(JSON.stringify(packet.http.headers, null, 2))"
                 class="px-2 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded"
               >
                 复制全部
               </button>
             </div>
             <div class="space-y-2">
-              <div 
-                v-for="[key, value] in Object.entries(packet.http?.headers || {})"
+              <div
+                v-for="[key, value] in Object.entries(packet.http.headers || {})"
                 :key="key"
                 class="flex flex-col sm:flex-row sm:justify-between border-b border-gray-700 pb-2"
               >
@@ -322,19 +426,21 @@ const getTypeColor = (type: string): string => {
           </div>
         </div>
 
-        <!-- 请求体 -->
+        <!-- 请求体/响应体 -->
         <div v-if="activeTab === 'body' && hasBody">
           <div class="bg-gray-800 rounded p-4">
             <div class="flex justify-between items-center mb-3">
-              <h3 class="text-lg font-semibold text-blue-400">HTTP 请求体</h3>
-              <button 
-                @click="copyToClipboard(packet.http?.body || '')"
+              <h3 class="text-lg font-semibold text-blue-400">
+                {{ isRequest ? 'HTTP 请求体' : 'HTTP 响应体' }}
+              </h3>
+              <button
+                @click="copyToClipboard(packet.http.body || '')"
                 class="px-2 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded"
               >
                 复制
               </button>
             </div>
-            <pre class="bg-gray-900 p-3 rounded font-mono text-sm whitespace-pre-wrap break-all max-h-80 overflow-y-auto">{{ packet.http?.body }}</pre>
+            <pre class="bg-gray-900 p-3 rounded font-mono text-sm whitespace-pre-wrap break-all max-h-80 overflow-y-auto">{{ packet.http.body }}</pre>
           </div>
         </div>
       </div>
@@ -356,4 +462,4 @@ const getTypeColor = (type: string): string => {
   background: #6b7280;
   border-radius: 3px;
 }
-</style> 
+</style>

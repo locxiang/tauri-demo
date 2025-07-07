@@ -1,4 +1,4 @@
-use crate::capture::HttpRequest;
+use crate::capture::HttpPacket;
 use crate::auth::{
     config::TokenStatus,
     systems::{self, SystemAuth, TokenInfo},
@@ -43,16 +43,33 @@ impl TokenManager {
         }
     }
     
-    /// 处理传入的HTTP请求
-    pub fn process_request(&mut self, request: &HttpRequest) -> Result<()> {
-        let url = format!("{}://{}{}", 
-                         if request.dst_port == 443 { "https" } else { "http" },
-                         request.host, request.path);
+    /// 处理传入的HTTP数据包
+    pub fn process_request(&mut self, packet: &HttpPacket) -> Result<()> {
+        // 根据数据包类型决定处理方式
+        let url = match &packet.packet_type.as_str() {
+            &"request" => {
+                // 对于请求，构建完整URL
+                format!("{}://{}{}", 
+                       if packet.dst_port == 443 { "https" } else { "http" },
+                       packet.host, 
+                       packet.path.as_ref().unwrap_or(&"/".to_string()))
+            }
+            &"response" => {
+                // 对于响应，跳过处理（目前只处理请求）
+                debug!("⏭️ 跳过HTTP响应处理");
+                return Ok(());
+            }
+            _ => {
+                debug!("⏭️ 未知HTTP数据包类型: {}", packet.packet_type);
+                return Ok(());
+            }
+        };
         
-        debug!("🔄 开始处理HTTP请求: {} {}", request.method, url);
+        debug!("🔄 开始处理HTTP请求: {} {}", 
+               packet.method.as_ref().unwrap_or(&"UNKNOWN".to_string()), url);
         debug!("📋 请求详情: Headers数量={}, 源地址={}:{}, 目标={}:{}",
-               request.headers.len(), request.src_ip, request.src_port,
-               request.dst_ip, request.dst_port);
+               packet.headers.len(), packet.src_ip, packet.src_port,
+               packet.dst_ip, packet.dst_port);
         
         let mut processed_count = 0;
         let mut error_count = 0;
@@ -61,7 +78,7 @@ impl TokenManager {
         for (system_id, system) in self.systems.iter_mut() {
             debug!("🔍 系统 [{}] 开始检查请求", system_id);
             
-            match system.process_http_request(request) {
+            match system.process_http_request(packet) {
                 Ok(_) => {
                     processed_count += 1;
                     debug!("✅ 系统 [{}] 处理完成", system_id);
@@ -237,19 +254,22 @@ pub fn get_token_manager() -> Option<Arc<Mutex<TokenManager>>> {
     TOKEN_MANAGER.get().cloned()
 }
 
-/// 处理传入的HTTP请求
-pub fn process_incoming_request(request: &HttpRequest) -> Result<()> {
-    info!("🎮 manager开始处理HTTP请求: {} {}", request.method, request.path);
+/// 处理传入的HTTP数据包
+pub fn process_incoming_request(packet: &HttpPacket) -> Result<()> {
+    info!("🎮 manager开始处理HTTP{}: {} {}", 
+          if packet.packet_type == "request" { "请求" } else { "响应" },
+          packet.method.as_ref().unwrap_or(&"UNKNOWN".to_string()), 
+          packet.path.as_ref().unwrap_or(&"/".to_string()));
     
     if let Some(manager) = get_token_manager() {
         info!("✅ Token管理器已获取，准备加锁处理...");
         let mut mgr = manager.lock().unwrap();
         info!("🔒 Token管理器加锁成功，开始调用process_request...");
-        let result = mgr.process_request(request);
+        let result = mgr.process_request(packet);
         
         match &result {
-            Ok(_) => info!("✅ manager处理HTTP请求完成"),
-            Err(e) => error!("❌ manager处理HTTP请求失败: {}", e),
+            Ok(_) => info!("✅ manager处理HTTP{}完成", if packet.packet_type == "request" { "请求" } else { "响应" }),
+            Err(e) => error!("❌ manager处理HTTP{}失败: {}", if packet.packet_type == "request" { "请求" } else { "响应" }, e),
         }
         
         result
