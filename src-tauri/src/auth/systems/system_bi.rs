@@ -8,17 +8,35 @@ struct LengthValidator;
 
 impl TokenValidator for LengthValidator {
     fn validate(&self, token: &str) -> Result<()> {
-        debug!("🔐 长度验证器开始验证token，长度: {}", token.len());
+        debug!("🔐 开始验证BI系统Cookie");
         
-        // 检查token长度是否大于10
-        if token.len() <= 10 {
-            let error_msg = format!("Token长度不足，要求大于10个字符，实际: {}", token.len());
-            warn!("❌ Token验证失败: {}", error_msg);
+        // 检查是否包含x_login_pk字段
+        if !token.contains("x_login_pk=") {
+            let error_msg = "Cookie中缺少x_login_pk字段";
+            warn!("❌ Cookie验证失败: {}", error_msg);
             return Err(anyhow!(error_msg));
         }
-        debug!("✅ Token长度检查通过: {}", token.len());
         
-        info!("🔐 Token验证通过");
+        // 提取x_login_pk的值
+        let re = regex::Regex::new(r"x_login_pk=([^;]+)").unwrap();
+        if let Some(captures) = re.captures(token) {
+            if let Some(pk_value) = captures.get(1) {
+                let value = pk_value.as_str();
+                if value.is_empty() {
+                    warn!("❌ Cookie验证失败: x_login_pk值为空");
+                    return Err(anyhow!("x_login_pk值为空"));
+                }
+                debug!("✅ 找到有效的x_login_pk值");
+            } else {
+                warn!("❌ Cookie验证失败: 无法提取x_login_pk的值");
+                return Err(anyhow!("无法提取x_login_pk的值"));
+            }
+        } else {
+            warn!("❌ Cookie验证失败: x_login_pk格式不正确");
+            return Err(anyhow!("x_login_pk格式不正确"));
+        }
+        
+        info!("🔐 BI系统Cookie验证通过");
         Ok(())
     }
 }
@@ -28,9 +46,9 @@ pub fn create_system() -> BaseSystem {
     let config = SystemConfig {
         system_id: "system_bi".to_string(),
         system_name: "BI系统".to_string(),
-        url_pattern: r"192\.168\.91\.1.*".to_string(),
-        header_name: "x-csrf-token".to_string(),
-        token_pattern: r"(.+)".to_string(), // 直接匹配任意字符，不需要Bearer前缀
+        url_pattern: r"https?://23\.210\.227\.16(:80)?/.*".to_string(),
+        header_name: "Cookie".to_string(),
+        token_pattern: r"(.+)".to_string(), // 直接匹配任意字符
         expires_duration: 3600, // 1小时
         validator: Box::new(LengthValidator),
     };

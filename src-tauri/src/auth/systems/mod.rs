@@ -1,8 +1,7 @@
-pub mod system_bi;
-pub mod system_norm;
-pub mod system_c;
-pub mod system_d;
 pub mod registry;
+pub mod system_bi;
+pub mod system_three;
+pub mod system_drs;
 
 use serde::{Deserialize, Serialize};
 use anyhow::Result;

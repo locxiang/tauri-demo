@@ -1,4 +1,4 @@
-use super::{SystemAuth, system_bi, system_norm, system_c, system_d};
+use super::{SystemAuth,system_bi, system_three, system_drs};
 
 /// 系统注册中心
 /// 
@@ -16,14 +16,11 @@ impl SystemRegistry {
             // 系统A: BI系统 
             Box::new(system_bi::create_system()),
             
-            // 系统B: 指标系统 
-            Box::new(system_norm::create_system()),
-            
             // 系统C: 数据平台 
-            Box::new(system_c::create_system()),
+            Box::new(system_three::create_system()),
             
             // 系统D: 业务系统 
-            Box::new(system_d::create_system()),
+            Box::new(system_drs::create_system()),
             
             // 添加新系统时，在此处添加：
             // Box::new(system_xxx::create_system()),
