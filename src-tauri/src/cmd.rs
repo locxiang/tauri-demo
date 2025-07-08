@@ -2,8 +2,6 @@ use crate::capture;
 use crate::auth;
 use tauri::ipc::Channel;
 
-use tauri::Manager;
-
 // 获取捕获状态
 #[tauri::command]
 pub fn get_capture_status() -> capture::CaptureStatus {

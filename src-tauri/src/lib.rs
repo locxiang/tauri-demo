@@ -106,14 +106,11 @@ pub fn run() {
             
             Ok(())
         })
-        .on_window_event(|_event_window, event| {
-            if let tauri::WindowEvent::CloseRequested { .. } = event {
-                info!("窗口关闭，停止数据包捕获");
-                // if let Err(e) = capture::stop_capture() {
-                //     error!("停止数据包捕获失败: {}", e);
-                // }
-            }
-        })
+        // .on_window_event(|event_window, event| {
+        //     if let tauri::WindowEvent::CloseRequested { _api, .. } = event {
+        //         info!("用户请求关闭窗口")
+        //     }
+        // })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
