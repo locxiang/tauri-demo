@@ -1,4 +1,4 @@
-use super::{SystemAuth, system_a, system_b, system_c, system_d};
+use super::{SystemAuth, system_bi, system_norm, system_c, system_d};
 
 /// 系统注册中心
 /// 
@@ -13,16 +13,16 @@ impl SystemRegistry {
     /// 添加新系统时，在这里添加对应的 create_system() 调用。
     pub fn create_all_systems() -> Vec<Box<dyn SystemAuth + Send + Sync>> {
         vec![
-            // 系统A: 管理后台 (JWT Token)
-            Box::new(system_a::create_system()),
+            // 系统A: BI系统 
+            Box::new(system_bi::create_system()),
             
-            // 系统B: 用户中心 (字母数字Token)
-            Box::new(system_b::create_system()),
+            // 系统B: 指标系统 
+            Box::new(system_norm::create_system()),
             
-            // 系统C: 数据平台 (十六进制Token)
+            // 系统C: 数据平台 
             Box::new(system_c::create_system()),
             
-            // 系统D: 业务系统 (Base64 Token)
+            // 系统D: 业务系统 
             Box::new(system_d::create_system()),
             
             // 添加新系统时，在此处添加：

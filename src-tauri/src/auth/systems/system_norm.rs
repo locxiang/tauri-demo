@@ -34,8 +34,8 @@ impl TokenValidator for UserTokenValidator {
 /// 创建系统B实例
 pub fn create_system() -> BaseSystem {
     let config = SystemConfig {
-        system_id: "system_b".to_string(),
-        system_name: "用户中心".to_string(),
+        system_id: "system_norm".to_string(),
+        system_name: "指标系统".to_string(),
         url_pattern: r"https?://[^/]*user[^/]*\..*?/api/.*".to_string(),
         header_name: "X-Auth-Token".to_string(),
         token_pattern: r"([A-Za-z0-9]{32,})".to_string(),

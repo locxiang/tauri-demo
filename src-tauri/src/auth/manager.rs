@@ -98,20 +98,16 @@ impl TokenManager {
     
     /// 获取所有系统的token状态
     pub fn get_all_status(&self) -> Vec<TokenStatus> {
-        debug!("📈 生成所有系统状态报告...");
         let mut statuses = Vec::new();
         
         for (system_id, system) in &self.systems {
             let info = system.get_token_info();
             let status = self.convert_token_info_to_status(&info, system_id, system.system_name());
             
-            debug!("📝 系统 [{}] 状态: {:?}, 有token: {}", 
-                   system_id, status.status, status.has_token);
             
             statuses.push(status);
         }
         
-        info!("📋 状态报告生成完成，共 {} 个系统", statuses.len());
         statuses
     }
     

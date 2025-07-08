@@ -288,10 +288,10 @@ const authInfo = ref({
 const automationModules = ref([
   {
     id: 1,
-    name: '自动化处理指标上屏',
+    name: 'BI系统数据异常监控',
     icon: '📊',
     status: 'ready',
-    description: '自动化处理指标上屏'
+    description: 'BI系统数据异常监控，根据 BI 的Excel 统计自动发现异常数据'
   },
   {
     id: 2,
@@ -309,10 +309,10 @@ const automationModules = ref([
   },
   {
     id: 4,
-    name: 'xxxx 自动化处理',
-    icon: '✅',
+    name: '自动化处理指标上屏',
+    icon: '🔄',
     status: 'stopped',
-    description: 'xxxxxx 自动化处理'
+    description: '自动化处理指标上屏'
   },
   {
     id: 5,

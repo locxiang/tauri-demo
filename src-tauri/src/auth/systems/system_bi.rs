@@ -26,8 +26,8 @@ impl TokenValidator for LengthValidator {
 /// 创建GitLab系统实例
 pub fn create_system() -> BaseSystem {
     let config = SystemConfig {
-        system_id: "gitlab".to_string(),
-        system_name: "GitLab".to_string(),
+        system_id: "system_bi".to_string(),
+        system_name: "BI系统".to_string(),
         url_pattern: r"192\.168\.91\.1.*".to_string(),
         header_name: "x-csrf-token".to_string(),
         token_pattern: r"(.+)".to_string(), // 直接匹配任意字符，不需要Bearer前缀

@@ -22,7 +22,7 @@ pub fn run() {
                 .target(tauri_plugin_log::Target::new(
                     tauri_plugin_log::TargetKind::Stdout,
                 )) // 保留控制台输出用于调试
-                .max_file_size(50_000_000) // 50MB
+                .max_file_size(10_000_000) // 10MB
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .level(log::LevelFilter::Info)
                 .level_for("big_data_rpa_v4", log::LevelFilter::Debug)
@@ -99,10 +99,6 @@ pub fn run() {
             //     window.close_devtools(); // 如果你只想打开一次可以注释掉这行
             // }
 
-            
-            
-            // 注意：不再自动启动数据包捕获，而是由用户点击按钮触发
-            info!("应用已启动，等待用户请求开始捕获");
             
             Ok(())
         })

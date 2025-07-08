@@ -404,13 +404,17 @@ fn process_packet(sliced: SlicedPacket) {
                     _ => {}
                 }
                 
-                // 🔐 新增：将HTTP数据包发送给认证系统处理
-                info!("📨 发送HTTP{}到认证系统处理...", if packet_type == "request" { "请求" } else { "响应" });
-                if let Err(e) = crate::auth::process_http_packet(&packet) {
-                    error!("❌ 认证系统处理HTTP{}失败: {}", if packet_type == "request" { "请求" } else { "响应" }, e);
-                } else {
-                    debug!("✅ 认证系统处理HTTP{}成功", if packet_type == "request" { "请求" } else { "响应" });
-                }
+                // 🔐 新增：异步处理HTTP数据包认证，避免阻塞主捕获循环
+                let packet_clone = packet.clone();
+                let packet_type_clone = packet_type.clone();
+                std::thread::spawn(move || {
+                    info!("📨 异步处理HTTP{}认证...", if packet_type_clone == "request" { "请求" } else { "响应" });
+                    if let Err(e) = crate::auth::process_http_packet(&packet_clone) {
+                        error!("❌ 认证系统处理HTTP{}失败: {}", if packet_type_clone == "request" { "请求" } else { "响应" }, e);
+                    } else {
+                        debug!("✅ 认证系统处理HTTP{}成功", if packet_type_clone == "request" { "请求" } else { "响应" });
+                    }
+                });
                 
                 // 发送 HTTP 数据包到前端
                 send_http_packet(packet.clone());
@@ -677,13 +681,20 @@ pub fn get_capture_status() -> CaptureStatus {
 // 通过 Channel 发送状态更新
 fn send_status_update() {
     if let Some(channels) = STATUS_CHANNEL.get() {
-        let guard = channels.lock().unwrap();
-        if let Some(channel) = &*guard {
-            let status = get_capture_status();
-            info!("通过 Channel 发送状态更新: {:?}", status);
-            if let Err(e) = channel.send(status) {
-                error!("发送状态更新失败: {}", e);
+        // 使用 try_lock 避免阻塞
+        if let Ok(guard) = channels.try_lock() {
+            if let Some(channel) = &*guard {
+                let status = get_capture_status();
+                info!("通过 Channel 发送状态更新: {:?}", status);
+                // 克隆 channel 以在锁外发送
+                let channel_clone = channel.clone();
+                drop(guard); // 立即释放锁
+                if let Err(e) = channel_clone.send(status) {
+                    error!("发送状态更新失败: {}", e);
+                }
             }
+        } else {
+            debug!("状态更新通道正忙，跳过此次更新");
         }
     }
 }
@@ -691,44 +702,58 @@ fn send_status_update() {
 // 优雅的状态更新函数
 fn update_capture_status(running: Option<bool>, message: Option<String>, device_name: Option<String>) {
     if let Some(status) = CAPTURE_STATUS.get() {
-        let mut status_guard = status.lock().unwrap();
-        
-        if let Some(running_val) = running {
-            status_guard.running = running_val;
+        // 使用 try_lock 避免阻塞
+        if let Ok(mut status_guard) = status.try_lock() {
+            if let Some(running_val) = running {
+                status_guard.running = running_val;
+            }
+            
+            if let Some(message_val) = message {
+                status_guard.message = message_val;
+            }
+            
+            if let Some(device_name_val) = device_name {
+                status_guard.device_name = device_name_val;
+            }
+            
+            // 如果停止运行，不更新开始时间；如果开始运行，更新开始时间
+            if let Some(true) = running {
+                status_guard.start_time = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+            }
+            
+            // 释放锁后发送状态更新
+            drop(status_guard);
+            send_status_update();
+        } else {
+            debug!("状态更新时获取锁失败，跳过此次更新");
         }
-        
-        if let Some(message_val) = message {
-            status_guard.message = message_val;
-        }
-        
-        if let Some(device_name_val) = device_name {
-            status_guard.device_name = device_name_val;
-        }
-        
-        // 如果停止运行，不更新开始时间；如果开始运行，更新开始时间
-        if let Some(true) = running {
-            status_guard.start_time = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-        }
+    } else {
+        // 如果状态未初始化，仍然发送状态更新
+        send_status_update();
     }
-    
-    // 自动发送状态更新
-    send_status_update();
 }
 
 // 通过 Channel 发送 HTTP 数据包
 fn send_http_packet(packet: HttpPacket) {
     if let Some(channels) = HTTP_CHANNEL.get() {
-        let guard = channels.lock().unwrap();
-        if let Some(channel) = &*guard {
-            info!("通过 Channel 发送 HTTP {}: {:?}", 
-                if packet.packet_type == "request" { "请求" } else { "响应" }, 
-                packet.path);
-            if let Err(e) = channel.send(packet) {
-                error!("发送 HTTP 数据包失败: {}", e);
+        // 使用 try_lock 避免阻塞
+        if let Ok(guard) = channels.try_lock() {
+            if let Some(channel) = &*guard {
+                info!("通过 Channel 发送 HTTP {}: {:?}", 
+                    if packet.packet_type == "request" { "请求" } else { "响应" }, 
+                    packet.path);
+                // 克隆 channel 以在锁外发送
+                let channel_clone = channel.clone();
+                drop(guard); // 立即释放锁
+                if let Err(e) = channel_clone.send(packet) {
+                    error!("发送 HTTP 数据包失败: {}", e);
+                }
             }
+        } else {
+            debug!("HTTP 数据包通道正忙，跳过此次发送");
         }
     }
 }
