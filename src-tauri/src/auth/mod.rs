@@ -1,4 +1,3 @@
-pub mod config;
 pub mod systems;
 pub mod manager;
 pub mod store;

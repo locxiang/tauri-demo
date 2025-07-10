@@ -352,47 +352,51 @@ const getRemainingTimeClass = (systemId: string): string => {
 
 // 格式化事件时间
 const formatEventTime = (event: TokenEvent): string => {
-  let timestamp: number;
+  let timestamp = 0;
 
-  if ('TokenAcquired' in event) {
-    timestamp = event.TokenAcquired.acquired_at;
-  } else if ('TokenExpired' in event) {
-    timestamp = event.TokenExpired.expired_at;
-  } else if ('TokenFailed' in event) {
-    timestamp = event.TokenFailed.failed_at;
-  } else {
-    return '-';
+  if (event.type === 'TokenAcquired') {
+    timestamp = event.acquired_at;
+  } else if (event.type === 'TokenExpired') {
+    timestamp = event.expired_at;
+  } else if (event.type === 'TokenFailed') {
+    timestamp = event.failed_at;
   }
 
-  return new Date(timestamp * 1000).toLocaleString('zh-CN');
+  if (timestamp === 0) return '-';
+
+  return new Date(timestamp * 1000).toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
 };
 
 // 获取事件系统名
 const getEventSystemName = (event: TokenEvent): string => {
-  if ('TokenAcquired' in event) return event.TokenAcquired.system_name;
-  if ('TokenExpired' in event) return event.TokenExpired.system_name;
-  if ('TokenFailed' in event) return event.TokenFailed.system_name;
-  return '-';
+  return event.system_name;
 };
 
 // 获取事件类型
 const getEventType = (event: TokenEvent): string => {
-  if ('TokenAcquired' in event) return 'Token获取';
-  if ('TokenExpired' in event) return 'Token过期';
-  if ('TokenFailed' in event) return 'Token失败';
+  if (event.type === 'TokenAcquired') return 'Token获取';
+  if (event.type === 'TokenExpired') return 'Token过期';
+  if (event.type === 'TokenFailed') return 'Token失败';
   return '未知';
 };
 
 // 获取事件详情
 const getEventDetails = (event: TokenEvent): string => {
-  if ('TokenAcquired' in event) {
-    return `从 ${event.TokenAcquired.source_url} 获取成功`;
+  if (event.type === 'TokenAcquired') {
+    return `从 ${event.source_url} 获取成功`;
   }
-  if ('TokenExpired' in event) {
+  if (event.type === 'TokenExpired') {
     return '已过期';
   }
-  if ('TokenFailed' in event) {
-    return event.TokenFailed.error;
+  if (event.type === 'TokenFailed') {
+    return event.error;
   }
   return '-';
 };
