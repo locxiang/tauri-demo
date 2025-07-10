@@ -1,348 +1,191 @@
 use crate::capture::HttpPacket;
 use crate::auth::{
-    config::TokenStatus,
-    systems::{self, SystemAuth, TokenInfo},
-    events,
+    store::{TokenStatus, TokenStore},
+    systems::{self, SystemAuth},
+    TokenEvent, send_token_event,
 };
 use anyhow::{Result, anyhow};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::collections::HashMap;
-use once_cell::sync::OnceCell;
-use log::{info, warn, debug, error};
+use tokio::sync::Mutex;
+use log::{info, debug, error};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-// 全局token管理器实例
-static TOKEN_MANAGER: OnceCell<Arc<Mutex<TokenManager>>> = OnceCell::new();
 
-/// Token管理器
-pub struct TokenManager {
-    /// 各系统实例
-    systems: HashMap<String, Box<dyn SystemAuth + Send + Sync>>,
+/// 简化的认证服务（移除内部事件系统）
+pub struct AuthService {
+    /// Token存储
+    store: Arc<TokenStore>,
+    /// 系统注册表
+    systems: Arc<Mutex<HashMap<String, Box<dyn SystemAuth + Send + Sync>>>>,
 }
 
-impl TokenManager {
-    fn new() -> Self {
-        let mut systems = HashMap::new();
+impl AuthService {
+    /// 创建新的认证服务（移除事件通道）
+    pub async fn new() -> Self {
+        let store = Arc::new(TokenStore::new());
         
+        // 初始化系统
+        let mut systems = HashMap::new();
         info!("🔧 开始加载所有认证系统...");
         
-        // 创建所有系统实例
         for system in systems::create_all_systems() {
             let system_id = system.system_id().to_string();
             let system_name = system.system_name().to_string();
-            
             info!("📦 加载系统: [{}] {}", system_id, system_name);
-            systems.insert(system_id.clone(), system);
-            debug!("✅ 系统 [{}] 加载完成", system_id);
+            systems.insert(system_id, system);
         }
         
         info!("🎯 所有认证系统加载完成，共 {} 个系统", systems.len());
         
         Self {
-            systems,
+            store,
+            systems: Arc::new(Mutex::new(systems)),
         }
     }
     
-    /// 处理传入的HTTP数据包
-    pub fn process_request(&mut self, packet: &HttpPacket) -> Result<()> {
-        // 根据数据包类型决定处理方式
-        let url = match &packet.packet_type.as_str() {
-            &"request" => {
-                // 对于请求，构建完整URL
-                format!("{}://{}{}", 
-                       if packet.dst_port == 443 { "https" } else { "http" },
-                       packet.host, 
-                       packet.path.as_ref().unwrap_or(&"/".to_string()))
-            }
-            &"response" => {
-                // 对于响应，跳过处理（目前只处理请求）
-                debug!("⏭️ 跳过HTTP响应处理");
-                return Ok(());
-            }
-            _ => {
-                debug!("⏭️ 未知HTTP数据包类型: {}", packet.packet_type);
-                return Ok(());
-            }
-        };
+    /// 处理HTTP数据包
+    pub async fn process_http_packet(&self, packet: HttpPacket) -> Result<()> {
+        debug!("🔄 处理HTTP请求: {} {}", 
+               packet.method.as_ref().unwrap_or(&"UNKNOWN".to_string()),
+               packet.path.as_ref().unwrap_or(&"/".to_string()));
         
-        debug!("🔄 开始处理HTTP请求: {} {}", 
-               packet.method.as_ref().unwrap_or(&"UNKNOWN".to_string()), url);
-        debug!("📋 请求详情: Headers数量={}, 源地址={}:{}, 目标={}:{}",
-               packet.headers.len(), packet.src_ip, packet.src_port,
-               packet.dst_ip, packet.dst_port);
+        // 只处理请求类型的数据包
+        if packet.packet_type != "request" {
+            return Ok(());
+        }
         
+        let url = format!("{}://{}{}", 
+                         if packet.dst_port == 443 { "https" } else { "http" },
+                         packet.host, 
+                         packet.path.as_ref().unwrap_or(&"/".to_string()));
+        
+        let mut systems = self.systems.lock().await;
         let mut processed_count = 0;
-        let mut error_count = 0;
         
-        // 让每个系统自己判断是否要处理这个请求
-        for (system_id, system) in self.systems.iter_mut() {
+        for (system_id, system) in systems.iter_mut() {
             debug!("🔍 系统 [{}] 开始检查请求", system_id);
             
-            match system.process_http_request(packet) {
-                Ok(_) => {
+            match system.process_http_request(&packet) {
+                Ok(Some(token_info)) => {
                     processed_count += 1;
-                    debug!("✅ 系统 [{}] 处理完成", system_id);
+                    debug!("✅ 系统 [{}] 获取到新token", system_id);
+                    
+                    // 更新token存储
+                    self.store.update_token(system_id.clone(), token_info.clone());
+                    
+                    // 发送token获取成功事件
+                    if let Some(token) = &token_info.token {
+                        let event = TokenEvent::TokenAcquired {
+                            system_id: system_id.clone(),
+                            system_name: system.system_name().to_string(),
+                            token: token.clone(),
+                            acquired_at: token_info.acquired_at.unwrap_or(0),
+                            expires_at: token_info.expires_at.unwrap_or(0),
+                            source_url: url.clone(),
+                        };
+                        
+                        // 直接发送事件到前端（不经过内部通道）
+                        send_token_event(event);
+                        info!("📤 系统 [{}] 发送token更新事件", system_id);
+                    }
+                }
+                Ok(None) => {
+                    debug!("⏭️ 系统 [{}] 没有token更新", system_id);
                 }
                 Err(e) => {
-                    error_count += 1;
                     debug!("⚠️ 系统 [{}] 处理失败: {}", system_id, e);
                 }
             }
         }
         
-        debug!("📊 请求处理结果: 成功={}, 失败={}, 总计={}", 
-               processed_count, error_count, self.systems.len());
-        
+        debug!("📊 请求处理完成，处理系统数量: {}", processed_count);
         Ok(())
     }
     
     /// 获取所有系统的token状态
-    pub fn get_all_status(&self) -> Vec<TokenStatus> {
-        let mut statuses = Vec::new();
+    pub async fn get_all_token_status(&self) -> Vec<TokenStatus> {
+        let systems = self.systems.lock().await;
+        let system_names: HashMap<String, String> = systems
+            .iter()
+            .map(|(id, system)| (id.clone(), system.system_name().to_string()))
+            .collect();
         
-        for (system_id, system) in &self.systems {
-            let info = system.get_token_info();
-            let status = self.convert_token_info_to_status(&info, system_id, system.system_name());
-            
-            
-            statuses.push(status);
-        }
-        
-        statuses
+        self.store.get_all_status_with_names(&system_names)
     }
     
     /// 获取特定系统的token
     pub fn get_system_token(&self, system_id: &str) -> Option<String> {
-        debug!("🔎 查找系统 [{}] 的token", system_id);
-        
-        let token = self.systems.get(system_id)
-            .and_then(|system| system.get_current_token())
-            .map(|token| token.to_string());
-        
-        match &token {
-            Some(t) => {
-                info!("✅ 系统 [{}] token可用，长度: {}", system_id, t.len());
-                debug!("🔑 Token预览: {}...{}", 
-                       &t[..t.len().min(8)], 
-                       &t[t.len().saturating_sub(8)..]);
-            }
-            None => {
-                debug!("❌ 系统 [{}] token不可用", system_id);
-            }
-        }
-        
-        token
+        self.store.get_token(system_id)
     }
     
     /// 清除特定系统的token
-    pub fn clear_system_token(&mut self, system_id: &str) -> Result<()> {
-        info!("🗑️ 准备清除系统 [{}] 的token", system_id);
-        
-        let system = self.systems.get_mut(system_id)
-            .ok_or_else(|| anyhow!("未找到系统: {}", system_id))?;
-        
-        let system_name = system.system_name().to_string();
-        system.clear_token();
-        
-        info!("✅ 已清除系统 [{}] ({}) 的token", system_id, system_name);
-        Ok(())
+    pub async fn clear_system_token(&self, system_id: &str) -> Result<()> {
+        let systems = self.systems.lock().await;
+        if systems.contains_key(system_id) {
+            self.store.clear_token(system_id);
+            Ok(())
+        } else {
+            Err(anyhow!("未找到系统: {}", system_id))
+        }
     }
     
     /// 清除所有系统的token
-    pub fn clear_all_tokens(&mut self) {
-        info!("🗑️ 开始清除所有系统的token...");
-        
-        let mut cleared_count = 0;
-        for (system_id, system) in self.systems.iter_mut() {
-            system.clear_token();
-            cleared_count += 1;
-            debug!("🗑️ 已清除系统 [{}] token", system_id);
-        }
-        
-        info!("✅ 所有系统token清除完成，共清除 {} 个", cleared_count);
+    pub fn clear_all_tokens(&self) {
+        self.store.clear_all_tokens();
     }
     
     /// 检查过期的token
-    pub fn check_expired_tokens(&mut self) {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+    pub async fn check_expired_tokens(&self) -> Result<()> {
+        debug!("⏰ 执行定期token过期检查...");
         
-        debug!("⏰ 开始检查过期token，当前时间戳: {}", now);
+        let expired_systems = self.store.check_expired_tokens();
         
-        let mut expired_count = 0;
-        let mut valid_count = 0;
-        
-        for (system_id, system) in self.systems.iter_mut() {
-            let info = system.get_token_info();
+        if !expired_systems.is_empty() {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
             
-            if info.is_valid {
-                if info.is_expired() {
-                    expired_count += 1;
-                    warn!("⏰ 系统 [{}] token已过期，过期时间: {:?}", 
-                          system_id, info.expires_at);
+            let systems = self.systems.lock().await;
+            
+            for system_id in expired_systems {
+                if let Some(system) = systems.get(&system_id) {
+                    let event = TokenEvent::TokenExpired {
+                        system_id: system_id.clone(),
+                        system_name: system.system_name().to_string(),
+                        expired_at: now,
+                    };
                     
-                    // 清除过期token
-                    system.clear_token();
-                    
-                    // 发送过期事件
-                    events::emit_token_expired(
-                        system_id.to_string(),
-                        system.system_name().to_string(),
-                        now,
-                    );
-                } else {
-                    valid_count += 1;
-                    if let Some(remaining) = info.remaining_time() {
-                        debug!("✅ 系统 [{}] token有效，剩余时间: {}秒", system_id, remaining);
-                    }
+                    // 直接发送过期事件到前端
+                    send_token_event(event);
                 }
             }
         }
         
-        if expired_count > 0 {
-            info!("⚠️ 发现 {} 个过期token已清除，当前有效token: {}", expired_count, valid_count);
-        } else {
-            debug!("✅ 所有token状态正常，有效token: {}", valid_count);
-        }
+        Ok(())
     }
     
-    /// 将TokenInfo转换为TokenStatus
-    fn convert_token_info_to_status(&self, info: &TokenInfo, system_id: &str, system_name: &str) -> TokenStatus {
-        use crate::auth::config::TokenState;
-        
-        let status = if !info.is_valid {
-            TokenState::Waiting
-        } else if info.is_expired() {
-            TokenState::Expired
-        } else {
-            TokenState::Active
+    /// 启动过期检查器
+    pub fn start_expiry_checker(&self) {
+        let service = AuthService {
+            store: self.store.clone(),
+            systems: self.systems.clone(),
         };
         
-        TokenStatus {
-            system_id: system_id.to_string(),
-            system_name: system_name.to_string(),
-            has_token: info.token.is_some(),
-            token_acquired_at: info.acquired_at,
-            token_expires_at: info.expires_at,
-            last_seen_url: None, // 可以根据需要添加
-            status,
-        }
-    }
-}
-
-/// 初始化token管理器
-pub fn init_token_manager() -> Result<()> {
-    info!("🎮 初始化Token管理器...");
-    let manager = Arc::new(Mutex::new(TokenManager::new()));
-    
-    TOKEN_MANAGER
-        .set(manager)
-        .map_err(|_| anyhow!("Token管理器已经初始化过了"))?;
-    
-    info!("✅ Token管理器初始化完成");
-    Ok(())
-}
-
-/// 获取token管理器实例
-pub fn get_token_manager() -> Option<Arc<Mutex<TokenManager>>> {
-    TOKEN_MANAGER.get().cloned()
-}
-
-/// 处理传入的HTTP数据包
-pub fn process_incoming_request(packet: &HttpPacket) -> Result<()> {
-    info!("🎮 manager开始处理HTTP{}: {} {}", 
-          if packet.packet_type == "request" { "请求" } else { "响应" },
-          packet.method.as_ref().unwrap_or(&"UNKNOWN".to_string()), 
-          packet.path.as_ref().unwrap_or(&"/".to_string()));
-    
-    if let Some(manager) = get_token_manager() {
-        info!("✅ Token管理器已获取，准备加锁处理...");
-        let mut mgr = manager.lock().unwrap();
-        info!("🔒 Token管理器加锁成功，开始调用process_request...");
-        let result = mgr.process_request(packet);
-        
-        match &result {
-            Ok(_) => info!("✅ manager处理HTTP{}完成", if packet.packet_type == "request" { "请求" } else { "响应" }),
-            Err(e) => error!("❌ manager处理HTTP{}失败: {}", if packet.packet_type == "request" { "请求" } else { "响应" }, e),
-        }
-        
-        result
-    } else {
-        error!("❌ Token管理器未初始化，无法处理请求");
-        Err(anyhow!("Token管理器未初始化"))
-    }
-}
-
-/// 获取所有系统的token状态
-pub fn get_all_token_status() -> Vec<TokenStatus> {
-    if let Some(manager) = get_token_manager() {
-        let mgr = manager.lock().unwrap();
-        mgr.get_all_status()
-    } else {
-        error!("❌ Token管理器未初始化，返回空状态");
-        Vec::new()
-    }
-}
-
-/// 获取特定系统的token
-pub fn get_system_token(system_id: &str) -> Option<String> {
-    if let Some(manager) = get_token_manager() {
-        let mgr = manager.lock().unwrap();
-        mgr.get_system_token(system_id)
-    } else {
-        error!("❌ Token管理器未初始化，无法获取token");
-        None
-    }
-}
-
-/// 清除特定系统的token
-pub fn clear_system_token(system_id: &str) -> Result<()> {
-    if let Some(manager) = get_token_manager() {
-        let mut mgr = manager.lock().unwrap();
-        mgr.clear_system_token(system_id)
-    } else {
-        error!("❌ Token管理器未初始化，无法清除token");
-        Err(anyhow!("Token管理器未初始化"))
-    }
-}
-
-/// 清除所有系统的token
-pub fn clear_all_tokens() -> Result<()> {
-    if let Some(manager) = get_token_manager() {
-        let mut mgr = manager.lock().unwrap();
-        mgr.clear_all_tokens();
-        Ok(())
-    } else {
-        error!("❌ Token管理器未初始化，无法清除所有token");
-        Err(anyhow!("Token管理器未初始化"))
-    }
-}
-
-/// 启动后台任务检查过期token
-pub fn start_token_expiry_checker() {
-    use std::thread;
-    use std::time::Duration;
-    
-    info!("⏰ 启动Token过期检查器后台任务...");
-    
-    thread::spawn(|| {
-        info!("🔄 Token过期检查器已启动，每60秒检查一次");
-        
-        loop {
-            thread::sleep(Duration::from_secs(60)); // 每分钟检查一次
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
             
-            debug!("⏰ 执行定期token过期检查...");
-            
-            if let Some(manager) = get_token_manager() {
-                let mut mgr = manager.lock().unwrap();
-                mgr.check_expired_tokens();
-            } else {
-                error!("❌ Token管理器未初始化，跳过过期检查");
+            loop {
+                interval.tick().await;
+                
+                if let Err(e) = service.check_expired_tokens().await {
+                    error!("❌ 检查过期token失败: {}", e);
+                }
             }
-        }
-    });
-    
-    info!("✅ Token过期检查器启动完成");
-} 
+        });
+        
+        info!("⏰ Token过期检查器已启动");
+    }
+}
+

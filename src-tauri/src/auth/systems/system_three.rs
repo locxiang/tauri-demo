@@ -1,4 +1,4 @@
-use super::{TokenValidator, SystemConfig, BaseSystem};
+use super::{TokenValidator, SystemConfig};
 use anyhow::{Result, anyhow};
 use log::{warn, debug, info};
 
@@ -23,7 +23,7 @@ impl TokenValidator for DataTokenValidator {
 }
 
 /// 创建系统C实例
-pub fn create_system() -> BaseSystem {
+pub fn create_system() -> SystemConfig {
     let config = SystemConfig {
         system_id: "system_three".to_string(),
         system_name: "三级治理中心门户".to_string(),
@@ -34,5 +34,5 @@ pub fn create_system() -> BaseSystem {
         validator: Box::new(DataTokenValidator),
     };
     
-    BaseSystem::new(config)
+    config
 } 

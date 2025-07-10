@@ -56,19 +56,26 @@ pub fn run() {
             cmd::clear_system_token,
             cmd::clear_all_tokens,
             cmd::set_token_event_channel,
-            cmd::get_token_event_history,
             // 日志系统命令
             logread::get_system_logs,
             cmd::open_devtools,
             cmd::open_folder,
         ])
-        .setup(|app| {// 初始化 AppHandle
+        .setup(|app| {
+            // 在Tauri的setup中，应该已经有Tokio运行时上下文
+            // 所以我们可以直接使用tokio::spawn
+            
+            // 初始化 AppHandle
             if let Err(e) = capture::init_app_handle(app.handle().clone()) {
                 error!("初始化 AppHandle 失败: {}", e);
             }
+            if let Err(e) = capture::init_capture_system() {
+                error!("初始化捕获系统失败: {}", e);
+            }   
             
             // 初始化认证系统
-            if let Err(e) = auth::init_auth_system() {
+            let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+            if let Err(e) = rt.block_on(auth::init_auth_system()) {
                 error!("初始化认证系统失败: {}", e);
             } else {
                 info!("🔐 认证系统初始化成功");
@@ -89,16 +96,6 @@ pub fn run() {
                     info!("未检测到Npcap，抓包功能可能受限");
                 }
             }
-
-            // #[cfg(debug_assertions)] // 只在开发模式下
-            // {
-            //     use tauri::Manager;
-
-            //     let window = app.get_webview_window("main").unwrap();
-            //     window.open_devtools();
-            //     window.close_devtools(); // 如果你只想打开一次可以注释掉这行
-            // }
-
             
             Ok(())
         })

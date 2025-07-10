@@ -1,4 +1,4 @@
-use super::{SystemAuth,system_bi, system_three, system_drs};
+use super::{SystemAuth,system_bi, system_three, system_drs, system_test};
 
 /// 系统注册中心
 /// 
@@ -13,6 +13,8 @@ impl SystemRegistry {
     /// 添加新系统时，在这里添加对应的 create_system() 调用。
     pub fn create_all_systems() -> Vec<Box<dyn SystemAuth + Send + Sync>> {
         vec![
+            Box::new(system_test::create_system()),
+
             // 系统A: BI系统 
             Box::new(system_bi::create_system()),
             

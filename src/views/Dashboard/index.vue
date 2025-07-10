@@ -69,6 +69,13 @@
                  }">
               {{ runningStatus.text }}
             </div>
+            <div class="text-xs mt-1"
+                 :class="{
+                   'text-green-400': runningStatus.color === 'green',
+                   'text-gray-400': runningStatus.color === 'gray'
+                 }">
+              已抓包：{{ proxyStore.packetCount }} 个
+            </div>
           </div>
           <div class="w-3 h-3 rounded-full"
                :class="{
@@ -218,9 +225,6 @@ const proxyStore = useProxyStore();
 const authStore = useAuthStore();
 const appStore = useAppStore();
 
-// 当前时间
-const currentTime = ref('');
-
 // 系统状态数据
 const systemStatus = ref({
   hasSystemAuth: true,
@@ -330,25 +334,10 @@ const automationModules = ref([
   }
 ]);
 
-// 时间更新定时器
-let timeTimer: NodeJS.Timeout | null = null;
-
-// 更新时间
-const updateTime = () => {
-  const now = new Date();
-  currentTime.value = now.toLocaleTimeString('zh-CN', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-};
-
 // 获取状态文本
 const getStatusText = (status: string) => {
   switch (status) {
     case 'running': return '运行中';
-    case 'ready': return '就绪';
     case 'stopped': return '已停止';
     default: return '未知';
   }

@@ -1,4 +1,4 @@
-use super::{TokenValidator, SystemConfig, BaseSystem};
+use super::{TokenValidator, SystemConfig};
 use anyhow::{Result, anyhow};
 use log::{warn, debug, info};
 
@@ -42,7 +42,7 @@ impl TokenValidator for BusinessTokenValidator {
 }
 
 /// 创建系统D实例
-pub fn create_system() -> BaseSystem {
+pub fn create_system() -> SystemConfig {
     let config = SystemConfig {
         system_id: "system_drs".to_string(),
         system_name: "DRS 系统".to_string(),
@@ -53,5 +53,5 @@ pub fn create_system() -> BaseSystem {
         validator: Box::new(BusinessTokenValidator),
     };
     
-    BaseSystem::new(config)
+    config
 } 

@@ -103,129 +103,142 @@ pub fn set_http_channel(channel: Channel<HttpPacket>) -> Result<()> {
     }
 }
 
-pub fn init_capture(device_name: String) -> Result<()> {
-    info!("init_capture");
-    info!("准备在设备 {:?} 上初始化数据包捕获", device_name.clone());
-    // 检查设备名称是否为空
-    if device_name.trim().is_empty() {
-        return Err(anyhow!("未指定网络设备名称，无法启动捕获"));
-    }
+// 一次性初始化全局状态，只在应用启动时调用一次
+pub fn init_capture_system() -> Result<()> {
+    info!("初始化捕获系统...");
     
-    
-    // 如果已经在运行，先停止
-    if let Some(status) = CAPTURE_STATUS.get() {
-        let status_guard = status.lock().unwrap();
-        if status_guard.running {
-            drop(status_guard); // 释放锁
-            info!("检测到捕获正在运行，先停止...");
-            stop_capture()?;
-            // 等待一段时间确保完全停止
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-    }
-
-    // 初始化或获取运行状态标志
-    let running = if let Some(existing_running) = CAPTURE_RUNNING.get() {
-        // 重置现有的运行标志
-        existing_running.store(true, Ordering::Relaxed);
-        existing_running.clone()
-    } else {
-        // 首次初始化
-        let running = Arc::new(AtomicBool::new(true));
+    // 初始化运行状态标志
+    if CAPTURE_RUNNING.get().is_none() {
+        let running = Arc::new(AtomicBool::new(false));
         CAPTURE_RUNNING
-            .set(running.clone())
-            .map_err(|_| anyhow!("已经初始化过运行状态标志"))?;
-        running
-    };
+            .set(running)
+            .map_err(|_| anyhow!("运行状态标志已经初始化过"))?;
+    }
 
-    // 初始化或获取线程句柄
-    let thread_handle = if let Some(existing_handle) = CAPTURE_THREAD.get() {
-        existing_handle.clone()
-    } else {
+    // 初始化线程句柄
+    if CAPTURE_THREAD.get().is_none() {
         let thread_handle = Arc::new(Mutex::new(None));
         CAPTURE_THREAD
-            .set(thread_handle.clone())
-            .map_err(|_| anyhow!("已经初始化过线程句柄"))?;
-        thread_handle
-    };
+            .set(thread_handle)
+            .map_err(|_| anyhow!("线程句柄已经初始化过"))?;
+    }
         
-    // 初始化或更新捕获状态
-    let status = if let Some(existing_status) = CAPTURE_STATUS.get() {
-        let mut status_guard = existing_status.lock().unwrap();
-        status_guard.running = true;
-        status_guard.message = "正在初始化...".to_string();
-        status_guard.device_name = "未知".to_string();
-        status_guard.start_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        existing_status.clone()
-    } else {
+    // 初始化捕获状态
+    if CAPTURE_STATUS.get().is_none() {
         let status = Arc::new(Mutex::new(CaptureStatus {
-            running: true,
-            message: "正在初始化...".to_string(),
+            running: false,
+            message: "捕获系统已初始化".to_string(),
             device_name: "".to_string(),
-            start_time: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            start_time: 0,
         }));
         CAPTURE_STATUS
-            .set(status.clone())
-            .map_err(|_| anyhow!("已经初始化过捕获状态"))?;
-        status
-    };
+            .set(status)
+            .map_err(|_| anyhow!("捕获状态已经初始化过"))?;
+    }
         
-    // 初始化通道存储（如果尚未初始化）
+    // 初始化通道存储
     if STATUS_CHANNEL.get().is_none() {
         STATUS_CHANNEL
             .set(Arc::new(Mutex::new(None)))
-            .map_err(|_| anyhow!("已经初始化过状态通道存储"))?;
+            .map_err(|_| anyhow!("状态通道存储已经初始化过"))?;
     }
     
     if HTTP_CHANNEL.get().is_none() {
         HTTP_CHANNEL
             .set(Arc::new(Mutex::new(None)))
-            .map_err(|_| anyhow!("已经初始化过 HTTP 数据包通道存储"))?;
+            .map_err(|_| anyhow!("HTTP数据包通道存储已经初始化过"))?;
     }
 
-    // 清理旧的线程句柄（如果存在）
+    info!("捕获系统初始化完成");
+    Ok(())
+}
+
+// 启动数据包捕获
+pub fn start_capture_with_device(device_name: String) -> Result<()> {
+    info!("启动数据包捕获，设备: {}", device_name);
+    
+    // 检查设备名称
+    if device_name.trim().is_empty() {
+        return Err(anyhow!("未指定网络设备名称"));
+    }
+    
+    // 检查是否已经在运行
+    if let Some(running) = CAPTURE_RUNNING.get() {
+        if running.load(Ordering::Relaxed) {
+            return Err(anyhow!("捕获已经在运行中，请先停止"));
+        }
+    } else {
+        return Err(anyhow!("捕获系统未初始化，请先调用init_capture_system"));
+    }
+    
+    let running = CAPTURE_RUNNING.get().unwrap();
+    let thread_handle = CAPTURE_THREAD.get().unwrap();
+    let status = CAPTURE_STATUS.get().unwrap();
+
+    // 清理旧的线程句柄
     {
-        let mut handle_guard = thread_handle.lock().unwrap();
-        if let Some(old_thread) = handle_guard.take() {
-            if old_thread.is_finished() {
-                let _ = old_thread.join();
-                info!("清理了旧的捕获线程");
+        match thread_handle.try_lock() {
+            Ok(mut handle_guard) => {
+                if let Some(old_thread) = handle_guard.take() {
+                    if old_thread.is_finished() {
+                        let _ = old_thread.join();
+                        info!("清理了旧的捕获线程");
+                    }
+                }
+            }
+            Err(_) => {
+                return Err(anyhow!("无法获取线程句柄锁，可能有其他操作正在进行"));
             }
         }
     }
+
+    // 设置运行标志
+    running.store(true, Ordering::Relaxed);
+    
+    // 更新状态
+    update_capture_status(Some(true), Some("正在启动...".to_string()), Some(device_name.clone()));
 
     // 启动捕获线程
     let running_clone = running.clone();
     let status_clone = status.clone();
     let capture_thread = thread::spawn(move || {
-        if let Err(e) = start_capture(running_clone, status_clone, device_name.clone()) {
+        if let Err(e) = run_capture_loop(running_clone, status_clone, device_name.clone()) {
             error!("数据包捕获出错: {}", e);
             update_capture_status(Some(false), Some(format!("捕获失败: {}", e)), None);
         }
     });
 
     // 保存线程句柄
-    *thread_handle.lock().unwrap() = Some(capture_thread);
-    info!("数据包捕获线程已启动");
+    match thread_handle.try_lock() {
+        Ok(mut handle_guard) => {
+            *handle_guard = Some(capture_thread);
+            info!("数据包捕获线程已启动");
+        }
+        Err(_) => {
+            // 如果无法保存句柄，停止运行标志
+            running.store(false, Ordering::Relaxed);
+            return Err(anyhow!("无法保存线程句柄"));
+        }
+    }
     
-    // 发送初始状态更新
     send_status_update();
     Ok(())
 }
 
-fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, device_name: String) -> Result<()> {
+fn run_capture_loop(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, device_name: String) -> Result<()> {
     info!("开始初始化数据包捕获...");
     
     // 更新状态
     {
-        let mut status_guard = status.lock().unwrap();
-        status_guard.message = "正在初始化网络捕获...".to_string();
+        match status.try_lock() {
+            Ok(mut status_guard) => {
+                status_guard.message = "正在初始化网络捕获...".to_string();
+            }
+            Err(_) => {
+                // 锁被占用，直接更新
+                update_capture_status(None, Some("正在初始化网络捕获...".to_string()), None);
+            }
+        }
     }
     send_status_update();
 
@@ -296,9 +309,16 @@ fn start_capture(running: Arc<AtomicBool>, status: Arc<Mutex<CaptureStatus>>, de
     
     // 更新状态为运行中
     {
-        let mut status_guard = status.lock().unwrap();
-        status_guard.running = true;
-        status_guard.message = "正在捕获 HTTP 请求和响应...".to_string();
+        match status.try_lock() {
+            Ok(mut status_guard) => {
+                status_guard.running = true;
+                status_guard.message = "正在捕获 HTTP 请求和响应...".to_string();
+            }
+            Err(_) => {
+                // 锁被占用，使用更新函数
+                update_capture_status(Some(true), Some("正在捕获 HTTP 请求和响应...".to_string()), None);
+            }
+        }
     }
     send_status_update();
     
@@ -409,7 +429,9 @@ fn process_packet(sliced: SlicedPacket) {
                 let packet_type_clone = packet_type.clone();
                 std::thread::spawn(move || {
                     info!("📨 异步处理HTTP{}认证...", if packet_type_clone == "request" { "请求" } else { "响应" });
-                    if let Err(e) = crate::auth::process_http_packet(&packet_clone) {
+                    
+                    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+                    if let Err(e) = rt.block_on(crate::auth::process_http_packet(&packet_clone)) {
                         error!("❌ 认证系统处理HTTP{}失败: {}", if packet_type_clone == "request" { "请求" } else { "响应" }, e);
                     } else {
                         debug!("✅ 认证系统处理HTTP{}成功", if packet_type_clone == "request" { "请求" } else { "响应" });
@@ -634,24 +656,32 @@ pub fn stop_capture() -> Result<()> {
 
     // 等待线程结束，给一个合理的超时时间
     if let Some(handle) = CAPTURE_THREAD.get() {
-        let mut guard = handle.lock().unwrap();
-        if let Some(thread) = guard.take() {
-            // 释放锁，允许线程正常执行
-            drop(guard);
-            
-            // 等待线程结束，最多等待3秒
-            let mut attempts = 0;
-            while !thread.is_finished() && attempts < 30 {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                attempts += 1;
+        match handle.try_lock() {
+            Ok(mut guard) => {
+                if let Some(thread) = guard.take() {
+                    // 释放锁，允许线程正常执行
+                    drop(guard);
+                    
+                    // 等待线程结束，最多等待3秒
+                    let mut attempts = 0;
+                    while !thread.is_finished() && attempts < 30 {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        attempts += 1;
+                    }
+                    
+                    if thread.is_finished() {
+                        let _ = thread.join();
+                        info!("数据包捕获线程已正常结束");
+                    } else {
+                        info!("等待线程结束超时，强制继续");
+                        // 注意：这里不调用 join，因为线程可能还在运行
+                    }
+                }
             }
-            
-            if thread.is_finished() {
-                let _ = thread.join();
-                info!("数据包捕获线程已正常结束");
-            } else {
-                info!("等待线程结束超时，强制继续");
-                // 注意：这里不调用 join，因为线程可能还在运行
+            Err(_) => {
+                // 锁被占用，等待一段时间
+                info!("线程句柄锁被占用，等待释放...");
+                std::thread::sleep(std::time::Duration::from_millis(200));
             }
         }
     }
@@ -666,8 +696,18 @@ pub fn stop_capture() -> Result<()> {
 // 获取捕获状态
 pub fn get_capture_status() -> CaptureStatus {
     if let Some(status) = CAPTURE_STATUS.get() {
-        let status_guard = status.lock().unwrap();
-        status_guard.clone()
+        match status.try_lock() {
+            Ok(status_guard) => status_guard.clone(),
+            Err(_) => {
+                // 锁被占用，返回默认状态
+                CaptureStatus {
+                    running: false,
+                    message: "状态读取中...".to_string(),
+                    device_name: "".to_string(),
+                    start_time: 0,
+                }
+            }
+        }
     } else {
         CaptureStatus {
             running: false,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
+import * as pako from 'pako';
 import type { PacketData } from '../../../stores/proxyStore';
 
 const props = defineProps<{
@@ -7,6 +8,7 @@ const props = defineProps<{
 }>();
 
 const activeTab = ref<'overview' | 'http' | 'headers' | 'body'>('overview');
+const showRawBody = ref(false); // 控制是否显示原始内容
 
 // 添加调试信息
 onMounted(() => {
@@ -128,6 +130,91 @@ const formatFullUrl = computed(() => {
   }
   return '';
 });
+
+// 检测是否为 gzip 压缩
+const isGzipCompressed = computed(() => {
+  const contentEncoding = props.packet?.http?.headers?.['content-encoding'] ||
+                         props.packet?.http?.headers?.['Content-Encoding'];
+  return contentEncoding?.toLowerCase().includes('gzip') || false;
+});
+
+// 尝试解压 gzip 内容
+const decompressGzipBody = (body: string): string => {
+  try {
+    // 将 base64 或十六进制字符串转换为 Uint8Array
+    let uint8Array: Uint8Array;
+
+    // 尝试将字符串转换为字节数组
+    if (body.startsWith('data:') || /^[A-Za-z0-9+/]+=*$/.test(body)) {
+      // 可能是 base64
+      const binaryString = atob(body.replace(/^data:[^;]+;base64,/, ''));
+      uint8Array = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        uint8Array[i] = binaryString.charCodeAt(i);
+      }
+    } else {
+      // 直接将字符串转换为字节数组
+      uint8Array = new TextEncoder().encode(body);
+    }
+
+    const decompressed = pako.inflate(uint8Array);
+    return new TextDecoder().decode(decompressed);
+  } catch (err) {
+    console.error('Gzip 解压失败:', err);
+    return body; // 如果解压失败，返回原始内容
+  }
+};
+
+// 尝试美化 JSON 内容
+const prettifyJson = (content: string): string => {
+  try {
+    const jsonObj = JSON.parse(content);
+    return JSON.stringify(jsonObj, null, 2);
+  } catch (err) {
+    console.error('JSON 解析失败:', err);
+    return content; // 如果不是 JSON，返回原始内容
+  }
+};
+
+// 检测内容类型
+const isJsonContent = computed(() => {
+  const contentType = props.packet?.http?.headers?.['content-type'] ||
+                     props.packet?.http?.headers?.['Content-Type'];
+  return contentType?.toLowerCase().includes('application/json') ||
+         contentType?.toLowerCase().includes('text/json') || false;
+});
+
+// 处理后的 body 内容
+const processedBody = computed(() => {
+  if (!props.packet?.http?.body) return '';
+
+  let content = props.packet.http.body;
+
+  // 如果不显示原始内容，进行处理
+  if (!showRawBody.value) {
+    // 首先尝试 gzip 解压
+    if (isGzipCompressed.value) {
+      content = decompressGzipBody(content);
+    }
+
+    // 然后尝试 JSON 美化
+    if (isJsonContent.value || isValidJson(content)) {
+      content = prettifyJson(content);
+    }
+  }
+
+  return content;
+});
+
+// 检测字符串是否为有效的 JSON
+const isValidJson = (str: string): boolean => {
+  try {
+    JSON.parse(str);
+    return true;
+  } catch {
+    return false;
+  }
+};
 </script>
 
 <template>
@@ -430,17 +517,66 @@ const formatFullUrl = computed(() => {
         <div v-if="activeTab === 'body' && hasBody">
           <div class="bg-gray-800 rounded p-4">
             <div class="flex justify-between items-center mb-3">
-              <h3 class="text-lg font-semibold text-blue-400">
-                {{ isRequest ? 'HTTP 请求体' : 'HTTP 响应体' }}
-              </h3>
-              <button
-                @click="copyToClipboard(packet.http.body || '')"
-                class="px-2 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded"
-              >
-                复制
-              </button>
+              <div class="flex items-center space-x-3">
+                <h3 class="text-lg font-semibold text-blue-400">
+                  {{ isRequest ? 'HTTP 请求体' : 'HTTP 响应体' }}
+                </h3>
+                <!-- 处理状态指示器 -->
+                <div class="flex items-center space-x-2">
+                  <span v-if="isGzipCompressed && !showRawBody" class="px-2 py-1 text-xs bg-green-600 rounded">
+                    🗜️ 已解压
+                  </span>
+                  <span v-if="(isJsonContent || isValidJson(processedBody)) && !showRawBody" class="px-2 py-1 text-xs bg-purple-600 rounded">
+                    🎨 已美化
+                  </span>
+                </div>
+              </div>
+              <div class="flex items-center space-x-2">
+                <!-- 原始/处理切换按钮 -->
+                <button
+                  @click="showRawBody = !showRawBody"
+                  :class="[
+                    'px-3 py-1 text-sm rounded transition-colors',
+                    showRawBody
+                      ? 'bg-orange-600 hover:bg-orange-700'
+                      : 'bg-green-600 hover:bg-green-700'
+                  ]"
+                >
+                  {{ showRawBody ? '显示处理后' : '显示原始' }}
+                </button>
+                <!-- 复制按钮 -->
+                <button
+                  @click="copyToClipboard(showRawBody ? (packet.http.body || '') : processedBody)"
+                  class="px-2 py-1 text-sm bg-blue-600 hover:bg-blue-700 rounded"
+                >
+                  复制
+                </button>
+              </div>
             </div>
-            <pre class="bg-gray-900 p-3 rounded font-mono text-sm whitespace-pre-wrap break-all max-h-80 overflow-y-auto">{{ packet.http.body }}</pre>
+
+            <!-- 内容显示区域 -->
+            <div class="relative">
+              <!-- 如果是 JSON，显示语法高亮 -->
+              <pre
+                v-if="!showRawBody && (isJsonContent || isValidJson(processedBody))"
+                class="bg-gray-900 p-3 rounded font-mono text-sm whitespace-pre-wrap break-all max-h-80 overflow-y-auto json-highlight"
+              >{{ processedBody }}</pre>
+              <!-- 普通文本显示 -->
+              <pre
+                v-else
+                class="bg-gray-900 p-3 rounded font-mono text-sm whitespace-pre-wrap break-all max-h-80 overflow-y-auto"
+              >{{ showRawBody ? packet.http.body : processedBody }}</pre>
+
+              <!-- 内容类型提示 -->
+              <div class="absolute top-2 right-2 flex flex-col items-end space-y-1">
+                <span v-if="isGzipCompressed" class="px-2 py-1 text-xs bg-blue-800 bg-opacity-80 rounded">
+                  Gzip
+                </span>
+                <span v-if="isJsonContent" class="px-2 py-1 text-xs bg-purple-800 bg-opacity-80 rounded">
+                  JSON
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -461,5 +597,30 @@ const formatFullUrl = computed(() => {
 ::-webkit-scrollbar-thumb {
   background: #6b7280;
   border-radius: 3px;
+}
+
+/* JSON 语法高亮样式 */
+.json-highlight {
+  color: #d1d5db;
+}
+
+/* 简单的 JSON 着色效果 */
+.json-highlight {
+  /* 字符串 */
+  --json-string-color: #10b981;
+  /* 数字 */
+  --json-number-color: #f59e0b;
+  /* 布尔值 */
+  --json-boolean-color: #3b82f6;
+  /* null */
+  --json-null-color: #6b7280;
+  /* 键名 */
+  --json-key-color: #8b5cf6;
+}
+
+/* 内容类型标签样式 */
+.content-type-badge {
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 </style>

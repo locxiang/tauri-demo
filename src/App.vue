@@ -9,17 +9,24 @@
 import { useAppStore, useAuthStore, useProxyStore } from './stores'
 import { onMounted } from 'vue'
 
-onMounted(() => {
+onMounted(async () => {
   const appStore = useAppStore()
   const authStore = useAuthStore()
   const proxyStore = useProxyStore()
 
-  appStore.initialize()
-  authStore.initialize()
-  proxyStore.initialize()
+  try {
+    // 并行初始化所有 store
+    await Promise.all([
+      appStore.initialize(),
+      authStore.initialize(),
+      proxyStore.initialize()
+    ])
+    console.log('🎉 所有 Store 初始化完成')
+  } catch (error) {
+    console.error('❌ Store 初始化失败:', error)
+    // 如果初始化失败，可以显示错误通知或重试
+  }
 })
-
-
 </script>
 
 <style>

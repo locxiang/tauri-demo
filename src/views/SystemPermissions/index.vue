@@ -175,7 +175,7 @@
                       getRemainingTimeClass(system.system_id)
                     ]"
                   >
-                    {{ getRemainingTimeText(system.system_id) }}
+                    {{ authStore.getTokenRemainingTimeFormatted(system.system_id) }}
                   </span>
                   <span v-else class="text-slate-500 italic">-</span>
                 </td>
@@ -267,7 +267,6 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import type { TokenEvent, TokenState } from '@/stores/authStore';
@@ -292,24 +291,12 @@ const handleRefresh = async () => {
 
 // 清除所有Token
 const handleClearAll = async () => {
-  if (confirm('确定要清除所有系统的Token吗？')) {
-    try {
-      await authStore.clearAllTokens();
-    } catch (error) {
-      console.error('清除失败:', error);
-    }
-  }
+  await authStore.clearAllTokens();
 };
 
 // 清除单个系统Token
 const handleClearSystem = async (systemId: string) => {
-  if (confirm(`确定要清除该系统的Token吗？`)) {
-    try {
-      await authStore.clearSystemToken(systemId);
-    } catch (error) {
-      console.error('清除失败:', error);
-    }
-  }
+  await authStore.clearSystemToken(systemId);
 };
 
 // 获取状态样式类
@@ -343,36 +330,12 @@ const getEventClasses = (event: TokenEvent): string => {
   return 'bg-slate-500/20 border-slate-500/30 text-slate-400 shadow-slate-500/20';
 };
 
-// 获取剩余时间文本 (实时更新)
-const getRemainingTimeText = (systemId: string): string => {
-  // 找到对应的系统状态
-  const systemStatus = authStore.tokenStatuses.find(status => status.system_id === systemId);
-
-  if (!systemStatus || !systemStatus.token_expires_at || systemStatus.status !== 'Active') {
-    return '-';
-  }
-
-  // 使用响应式的当前时间计算剩余时间
-  const remaining = systemStatus.token_expires_at - currentTime.value;
-
-  if (remaining <= 0) {
-    return '已过期';
-  }
-
-  return authStore.formatRemainingTime(remaining);
-};
-
 // 获取剩余时间样式类 (根据紧迫程度)
 const getRemainingTimeClass = (systemId: string): string => {
-  // 找到对应的系统状态
-  const systemStatus = authStore.tokenStatuses.find(status => status.system_id === systemId);
-
-  if (!systemStatus || !systemStatus.token_expires_at || systemStatus.status !== 'Active') {
+  let remaining = authStore.getTokenRemainingTime(systemId);
+  if (remaining === null) {
     return 'text-slate-500';
   }
-
-  // 使用响应式的当前时间计算剩余时间
-  const remaining = systemStatus.token_expires_at - currentTime.value;
 
   if (remaining <= 0) {
     return 'text-red-400 animate-pulse';

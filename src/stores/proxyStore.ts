@@ -89,6 +89,7 @@ export const useProxyStore = defineStore('proxy', () => {
   const selectedDevice = ref<string>('');
   const error = ref<string>('');
   const isLoading = ref<boolean>(false);
+  const totalPacketCount = ref<number>(0);  // 新增：总抓包数计数器
 
   // 过滤相关状态
   const filters = ref({
@@ -104,6 +105,12 @@ export const useProxyStore = defineStore('proxy', () => {
 
   // 计算属性
   const isCapturing = computed(() => captureStatus.value.running);
+
+  // 修改：使用独立计数器
+  const packetCount = computed(() => totalPacketCount.value);
+  const filteredPacketCount = computed(() => filteredPackets.value.length);
+  const requestCount = computed(() => packets.value.filter(p => p.type === 'request').length);
+  const responseCount = computed(() => packets.value.filter(p => p.type === 'response').length);
 
   // 过滤后的数据包
   const filteredPackets = computed(() => {
@@ -171,11 +178,6 @@ export const useProxyStore = defineStore('proxy', () => {
     });
   });
 
-  const packetCount = computed(() => packets.value.length);
-  const filteredPacketCount = computed(() => filteredPackets.value.length);
-  const requestCount = computed(() => packets.value.filter(p => p.type === 'request').length);
-  const responseCount = computed(() => packets.value.filter(p => p.type === 'response').length);
-
   // 将后端HttpPacket转换为前端PacketData
   const convertHttpPacketToPacketData = (httpPacket: HttpPacket): PacketData => {
     return {
@@ -224,10 +226,11 @@ export const useProxyStore = defineStore('proxy', () => {
       // 设置HTTP数据包通道
       const httpChannel = new Channel<HttpPacket>();
       httpChannel.onmessage = (httpPacket: HttpPacket) => {
-        console.log(`收到 HTTP ${httpPacket.packet_type === 'request' ? '请求' : '响应'}:`, httpPacket.path);
+        console.log(`收到 HTTP ${httpPacket.packet_type === 'request' ? '请求' : '响应'}:`,httpPacket.host, httpPacket.path);
 
         const packet = convertHttpPacketToPacketData(httpPacket);
         packets.value.unshift(packet);
+        totalPacketCount.value++;  // 新增：增加总计数
 
         // 限制包数量，避免内存溢出
         if (packets.value.length > 1000) {
@@ -291,6 +294,7 @@ export const useProxyStore = defineStore('proxy', () => {
   // 清空数据包
   const clearPackets = () => {
     packets.value = [];
+    totalPacketCount.value = 0;  // 新增：重置总计数
   };
 
   // 获取捕获状态
@@ -415,6 +419,7 @@ export const useProxyStore = defineStore('proxy', () => {
     error,
     isLoading,
     filters,
+    totalPacketCount,  // 新增：导出总计数
 
     // 计算属性
     isCapturing,

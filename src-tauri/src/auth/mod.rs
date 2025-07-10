@@ -1,87 +1,171 @@
 pub mod config;
 pub mod systems;
-pub mod events;
 pub mod manager;
+pub mod store;
 
 use anyhow::Result;
 use crate::capture::HttpPacket;
-use log::{info, debug, error};
+use log::{info, error};
+use std::sync::{Arc, Mutex};
+use manager::AuthService;
+use once_cell::sync::OnceCell;
+use tauri::ipc::Channel;
 
 // 重新导出主要类型
-pub use config::*;
-pub use events::*;
+pub use store::{TokenStatus};
 
-// 主要的初始化函数
-pub fn init_auth_system() -> Result<()> {
-    info!("🚀 开始初始化Token认证系统...");
+// 全局静态变量存储Token事件通道（参考抓包模块的实现）
+static TOKEN_EVENT_CHANNEL: OnceCell<Arc<Mutex<Option<Channel<TokenEvent>>>>> = OnceCell::new();
+static AUTH_SERVICE: OnceCell<Arc<AuthService>> = OnceCell::new();
+
+/// Token事件类型 - 和前端保持完全一致
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type")]
+pub enum TokenEvent {
+    /// Token获取成功
+    TokenAcquired {
+        system_id: String,
+        system_name: String,
+        token: String,
+        acquired_at: u64,
+        expires_at: u64,
+        source_url: String,
+    },
+    /// Token过期
+    TokenExpired {
+        system_id: String,
+        system_name: String,
+        expired_at: u64,
+    },
+    /// Token获取失败
+    TokenFailed {
+        system_id: String,
+        system_name: String,
+        error: String,
+        failed_at: u64,
+    },
+}
+
+/// 设置Token事件通道（参考抓包模块）
+pub fn set_token_event_channel(channel: Channel<TokenEvent>) -> Result<()> {
+    if let Some(channels) = TOKEN_EVENT_CHANNEL.get() {
+        let mut guard = channels.lock().unwrap();
+        *guard = Some(channel);
+        info!("🔗 Token事件通道已设置");
+        Ok(())
+    } else {
+        let channels = Arc::new(Mutex::new(Some(channel)));
+        TOKEN_EVENT_CHANNEL
+            .set(channels)
+            .map_err(|_| anyhow::anyhow!("已经初始化过Token事件通道"))?;
+        info!("🔗 Token事件通道已初始化");
+        Ok(())
+    }
+}
+
+/// 直接发送Token事件到前端（参考抓包模块）
+pub fn send_token_event(event: TokenEvent) {
+    if let Some(channels) = TOKEN_EVENT_CHANNEL.get() {
+        if let Ok(guard) = channels.try_lock() {
+            if let Some(channel) = &*guard {
+                info!("📤 发送Token事件到前端: {:?}", event);
+                let channel_clone = channel.clone();
+                drop(guard); // 立即释放锁
+                if let Err(e) = channel_clone.send(event) {
+                    error!("❌ 发送Token事件失败: {}", e);
+                } else {
+                    info!("✅ Token事件发送成功");
+                }
+            } else {
+                error!("❌ Token事件通道未设置");
+            }
+        } else {
+            error!("❌ Token事件通道正忙，跳过发送");
+        }
+    } else {
+        error!("❌ Token事件通道未初始化");
+    }
+}
+
+/// 初始化简化的认证系统
+pub async fn init_auth_system() -> Result<()> {
+    info!("🚀 开始初始化简化的Token认证系统...");
     
-    // 初始化事件系统
-    debug!("📡 初始化事件系统...");
-    events::init_event_system()?;
-    debug!("✅ 事件系统初始化完成");
+    // 初始化Token事件通道存储
+    if TOKEN_EVENT_CHANNEL.get().is_none() {
+        TOKEN_EVENT_CHANNEL
+            .set(Arc::new(Mutex::new(None)))
+            .map_err(|_| anyhow::anyhow!("Token事件通道存储已经初始化过"))?;
+    }
     
-    // 初始化token管理器
-    debug!("🎮 初始化token管理器...");
-    manager::init_token_manager()?;
-    debug!("✅ token管理器初始化完成");
+    // 创建认证服务
+    let auth_service = Arc::new(AuthService::new().await);
     
-    // 启动后台任务
-    debug!("⏰ 启动token过期检查器...");
-    manager::start_token_expiry_checker();
-    debug!("✅ token过期检查器启动完成");
+    // 设置全局认证服务
+    AUTH_SERVICE
+        .set(auth_service.clone())
+        .map_err(|_| anyhow::anyhow!("认证服务已经初始化过"))?;
     
-    info!("🔐 Token认证系统初始化完成！已加载 {} 个系统", 
-          get_all_token_status().len());
+    // 启动过期检查器
+    auth_service.start_expiry_checker();
+    
+    info!("🔐 简化的Token认证系统初始化完成！");
     Ok(())
 }
 
-// 处理来自抓包模块的HTTP数据包
-pub fn process_http_packet(packet: &HttpPacket) -> Result<()> {
+/// 获取认证服务实例
+pub fn get_auth_service() -> Option<Arc<AuthService>> {
+    AUTH_SERVICE.get().cloned()
+}
+
+/// 处理来自抓包模块的HTTP数据包
+pub async fn process_http_packet(packet: &HttpPacket) -> Result<()> {
     info!("🎯 auth模块收到HTTP{}: {} {} (来源: {}:{})", 
            if packet.packet_type == "request" { "请求" } else { "响应" },
            packet.method.as_ref().unwrap_or(&"UNKNOWN".to_string()),
            packet.path.as_ref().unwrap_or(&"/".to_string()),
            packet.src_ip, packet.src_port);
     
-    info!("🔍 开始调用manager::process_incoming_request...");
-    let result = manager::process_incoming_request(packet);
-    
-    match &result {
-        Ok(_) => {
-            info!("✅ auth模块处理HTTP{}成功", if packet.packet_type == "request" { "请求" } else { "响应" });
+    if let Some(auth_service) = get_auth_service() {
+        let result = auth_service.process_http_packet(packet.clone()).await;
+        
+        match &result {
+            Ok(_) => {
+                info!("✅ auth模块已处理HTTP{}", if packet.packet_type == "request" { "请求" } else { "响应" });
+            }
+            Err(e) => {
+                error!("❌ auth模块处理HTTP{}失败: {}", if packet.packet_type == "request" { "请求" } else { "响应" }, e);
+            }
         }
-        Err(e) => {
-            error!("❌ auth模块处理HTTP{}失败: {}", if packet.packet_type == "request" { "请求" } else { "响应" }, e);
-        }
-    }
-    
-    result
-}
-
-// 获取所有系统的token状态
-pub fn get_all_token_status() -> Vec<TokenStatus> {
-    debug!("📊 获取所有系统token状态");
-    let statuses = manager::get_all_token_status();
-    
-    debug!("📈 系统状态统计: 总数={}, 有效={}, 过期={}, 等待={}",
-           statuses.len(),
-           statuses.iter().filter(|s| matches!(s.status, TokenState::Active)).count(),
-           statuses.iter().filter(|s| matches!(s.status, TokenState::Expired)).count(),
-           statuses.iter().filter(|s| matches!(s.status, TokenState::Waiting)).count());
-    
-    statuses
-}
-
-// 获取特定系统的token
-pub fn get_system_token(system_id: &str) -> Option<String> {
-    debug!("🔍 查询系统 [{}] 的token", system_id);
-    let token = manager::get_system_token(system_id);
-    
-    if token.is_some() {
-        debug!("✅ 系统 [{}] token可用", system_id);
+        
+        result
     } else {
-        debug!("❌ 系统 [{}] token不可用", system_id);
+        error!("❌ 认证系统未初始化");
+        Err(anyhow::anyhow!("认证系统未初始化"))
     }
-    
-    token
-} 
+}
+
+/// 获取所有系统的token状态
+pub async fn get_all_token_status() -> Vec<TokenStatus> {
+    if let Some(auth_service) = get_auth_service() {
+        auth_service.get_all_token_status().await
+    } else {
+        error!("❌ 认证系统未初始化，返回空状态");
+        Vec::new()
+    }
+}
+
+/// 获取特定系统的token
+pub async fn get_system_token(system_id: &str) -> Option<String> {
+    if let Some(auth_service) = get_auth_service() {
+        auth_service.get_system_token(system_id)
+    } else {
+        error!("❌ 认证系统未初始化，无法获取token");
+        None
+    }
+}
+
+/// 设置前端Token事件通道
+pub fn set_token_event_channel_sync(channel: Channel<TokenEvent>) -> Result<()> {
+    set_token_event_channel(channel)
+}

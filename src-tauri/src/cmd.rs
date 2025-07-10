@@ -24,11 +24,11 @@ pub fn set_http_channel(channel: Channel<capture::HttpPacket>) -> Result<(), Str
     capture::set_http_channel(channel).map_err(|e| e.to_string())
 }
 
-// 初始化数据包捕获
+// 启动数据包捕获
 #[tauri::command]
 pub fn init_capture(device_name: String) -> Result<(), String> {
-    println!("init_capture: {}", device_name);
-    capture::init_capture(device_name.clone()).map_err(|e| e.to_string())
+    println!("start_capture: {}", device_name);
+    capture::start_capture_with_device(device_name.clone()).map_err(|e| e.to_string())
 }
 
 // 停止数据包捕获
@@ -94,38 +94,41 @@ pub async fn focus_packet_window(
 
 // 获取所有系统的token状态
 #[tauri::command]
-pub fn get_all_token_status() -> Vec<auth::TokenStatus> {
-    auth::get_all_token_status()
+pub async fn get_all_token_status() -> Vec<auth::TokenStatus> {
+    auth::get_all_token_status().await
 }
 
 // 获取特定系统的token
 #[tauri::command]
-pub fn get_system_token(system_id: String) -> Option<String> {
-    auth::get_system_token(&system_id)
+pub async fn get_system_token(system_id: String) -> Option<String> {
+    auth::get_system_token(&system_id).await
 }
 
 // 清除特定系统的token
 #[tauri::command]
-pub fn clear_system_token(system_id: String) -> Result<(), String> {
-    auth::manager::clear_system_token(&system_id).map_err(|e| e.to_string())
+pub async fn clear_system_token(system_id: String) -> Result<(), String> {
+    if let Some(service) = auth::get_auth_service() {
+        service.clear_system_token(&system_id).await.map_err(|e| e.to_string())
+    } else {
+        Err("认证服务未初始化".to_string())
+    }
 }
 
 // 清除所有系统的token
 #[tauri::command]
 pub fn clear_all_tokens() -> Result<(), String> {
-    auth::manager::clear_all_tokens().map_err(|e| e.to_string())
+    if let Some(service) = auth::get_auth_service() {
+        service.clear_all_tokens();
+        Ok(())
+    } else {
+        Err("认证服务未初始化".to_string())
+    }
 }
 
 // 设置Token事件通道
 #[tauri::command]
 pub fn set_token_event_channel(channel: Channel<auth::TokenEvent>) -> Result<(), String> {
-    auth::events::set_token_event_channel(channel).map_err(|e| e.to_string())
-}
-
-// 获取Token事件历史
-#[tauri::command]
-pub fn get_token_event_history() -> Vec<auth::TokenEvent> {
-    auth::events::get_event_history()
+    auth::set_token_event_channel_sync(channel).map_err(|e| e.to_string())
 }
 
 
