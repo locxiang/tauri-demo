@@ -16,7 +16,6 @@ impl TokenValidator for DataTokenValidator {
             return Err(anyhow!(error_msg));
         }
         
-        
         info!("🔐 数据Token验证通过");
         Ok(())
     }

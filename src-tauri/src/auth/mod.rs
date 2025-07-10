@@ -105,10 +105,8 @@ pub async fn init_auth_system() -> Result<()> {
         .set(auth_service.clone())
         .map_err(|_| anyhow::anyhow!("认证服务已经初始化过"))?;
     
-    // 启动过期检查器
-    auth_service.start_expiry_checker();
     
-    info!("🔐 简化的Token认证系统初始化完成！");
+    info!("🔐 Token认证系统初始化完成！");
     Ok(())
 }
 

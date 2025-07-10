@@ -1,15 +1,16 @@
-use crate::capture::HttpPacket;
-use crate::auth::{
-    store::{TokenStatus, TokenStore},
-    systems::{self, SystemAuth},
-    TokenEvent, send_token_event,
-};
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use std::sync::Arc;
 use std::collections::HashMap;
 use tokio::sync::Mutex;
-use log::{info, debug, error};
-use std::time::{SystemTime, UNIX_EPOCH};
+use log::{info, debug};
+use crate::auth::store::{TokenStore, TokenStatus};
+use crate::auth::systems::{self, SystemAuth};
+use crate::auth::TokenEvent;
+use crate::auth::send_token_event;
+use crate::capture::HttpPacket;
+
+
+
 
 
 /// 简化的认证服务（移除内部事件系统）
@@ -18,6 +19,8 @@ pub struct AuthService {
     store: Arc<TokenStore>,
     /// 系统注册表
     systems: Arc<Mutex<HashMap<String, Box<dyn SystemAuth + Send + Sync>>>>,
+    /// 存储每个系统最后一次命中 token 的 HTTP 请求包
+    http_packets: Arc<Mutex<HashMap<String, HttpPacket>>>,
 }
 
 impl AuthService {
@@ -41,6 +44,7 @@ impl AuthService {
         Self {
             store,
             systems: Arc::new(Mutex::new(systems)),
+            http_packets: Arc::new(Mutex::new(HashMap::new())),
         }
     }
     
@@ -73,6 +77,11 @@ impl AuthService {
                     
                     // 更新token存储
                     self.store.update_token(system_id.clone(), token_info.clone());
+                    
+                    // 存储命中 token 的 HTTP 包
+                    let mut http_packets = self.http_packets.lock().await;
+                    http_packets.insert(system_id.clone(), packet.clone());
+                    debug!("📦 存储系统 [{}] 的命中请求包", system_id);
                     
                     // 发送token获取成功事件
                     if let Some(token) = &token_info.token {
@@ -123,69 +132,16 @@ impl AuthService {
     pub async fn clear_system_token(&self, system_id: &str) -> Result<()> {
         let systems = self.systems.lock().await;
         if systems.contains_key(system_id) {
-            self.store.clear_token(system_id);
-            Ok(())
-        } else {
-            Err(anyhow!("未找到系统: {}", system_id))
+            self.store.clear_token(system_id);  
         }
+        Ok(())
     }
-    
+
     /// 清除所有系统的token
     pub fn clear_all_tokens(&self) {
         self.store.clear_all_tokens();
     }
     
-    /// 检查过期的token
-    pub async fn check_expired_tokens(&self) -> Result<()> {
-        debug!("⏰ 执行定期token过期检查...");
-        
-        let expired_systems = self.store.check_expired_tokens();
-        
-        if !expired_systems.is_empty() {
-            let now = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            
-            let systems = self.systems.lock().await;
-            
-            for system_id in expired_systems {
-                if let Some(system) = systems.get(&system_id) {
-                    let event = TokenEvent::TokenExpired {
-                        system_id: system_id.clone(),
-                        system_name: system.system_name().to_string(),
-                        expired_at: now,
-                    };
-                    
-                    // 直接发送过期事件到前端
-                    send_token_event(event);
-                }
-            }
-        }
-        
-        Ok(())
-    }
     
-    /// 启动过期检查器
-    pub fn start_expiry_checker(&self) {
-        let service = AuthService {
-            store: self.store.clone(),
-            systems: self.systems.clone(),
-        };
-        
-        tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(60));
-            
-            loop {
-                interval.tick().await;
-                
-                if let Err(e) = service.check_expired_tokens().await {
-                    error!("❌ 检查过期token失败: {}", e);
-                }
-            }
-        });
-        
-        info!("⏰ Token过期检查器已启动");
-    }
 }
 

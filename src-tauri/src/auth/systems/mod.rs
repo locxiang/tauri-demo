@@ -54,7 +54,6 @@ pub struct SystemConfig {
 }
 
 impl SystemConfig {
-
     /// 检查URL是否匹配
     fn matches_url(&self, url: &str) -> bool {
         debug!("🔍 系统[{}]检查URL匹配: {}", self.system_id, url);
@@ -172,7 +171,7 @@ impl SystemAuth for SystemConfig {
         }
         
         info!("🎉 系统[{}]token更新成功", self.system_id);
-        
+
         // 创建新的TokenInfo返回
         let token_info = TokenInfo {
             token: Some(token),
@@ -180,7 +179,7 @@ impl SystemAuth for SystemConfig {
             expires_at: Some(expires_at),
             is_valid: true,
         };
-        
+
         Ok(Some(token_info))
     }
     
@@ -204,7 +203,6 @@ pub struct TokenInfo {
 }
 
 impl TokenInfo {
-    
     /// 检查是否过期
     pub fn is_expired(&self) -> bool {
         if let Some(expires_at) = self.expires_at {

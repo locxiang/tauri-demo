@@ -4,8 +4,7 @@ use crate::auth::{
 use dashmap::DashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
-use log::{info, debug, warn};
+use log::{info, debug};
 
 /// 无锁Token存储
 pub struct TokenStore {
@@ -85,39 +84,7 @@ impl TokenStore {
         
         statuses
     }
-    
-    /// 检查过期的token
-    pub fn check_expired_tokens(&self) -> Vec<String> {
-        let _now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-        
-        let mut expired_systems = Vec::new();
-        
-        // 收集过期的系统ID
-        for entry in self.tokens.iter() {
-            let system_id = entry.key();
-            let token_info = entry.value();
-            
-            if token_info.is_valid && token_info.is_expired() {
-                expired_systems.push(system_id.clone());
-                warn!("⏰ 系统 [{}] token已过期", system_id);
-            }
-        }
-        
-        // 移除过期的token
-        for system_id in &expired_systems {
-            self.clear_token(system_id);
-        }
-        
-        if !expired_systems.is_empty() {
-            info!("🧹 清理了 {} 个过期token", expired_systems.len());
-        }
-        
-        expired_systems
-    }
-    
+ 
     /// 将TokenInfo转换为TokenStatus
     fn convert_token_info_to_status(&self, info: &TokenInfo, system_id: &str, system_name: &str) -> TokenStatus {
         use crate::auth::store::TokenState;
