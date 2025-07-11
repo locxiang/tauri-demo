@@ -37,6 +37,15 @@ dirs = "5.0"
 # 新增无锁和异步相关依赖
 tokio = { version = "1.40", features = ["full"] }
 dashmap = "6.1"
+# 新架构相关依赖
+thiserror = "1.0"
+toml = "0.8"
+futures = "0.3"
+# 平台特定依赖
+[target.'cfg(unix)'.dependencies]
+nix = "0.29"
+# Base64编解码
+base64 = "0.22"
 
 [profile.dev]
 incremental = true # Compile your binary in smaller steps.

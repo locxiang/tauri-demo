@@ -7,3 +7,6 @@ export type { TokenStatus, TokenEvent, TokenState } from './authStore';
 
 export { useAppStore } from './appStore';
 export type { AppState } from './appStore';
+
+export { useLogStore } from './logStore';
+export type { LogEntry, LogFilters, LogStats } from './logStore';

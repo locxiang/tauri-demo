@@ -43,6 +43,17 @@
             <span>清空显示</span>
           </button>
 
+          <button @click="startRealTimeStream"
+                  :class="[
+                    'flex items-center gap-2 px-4 py-2 border rounded-md transition-all duration-200',
+                    isStreaming
+                      ? 'bg-green-500/20 text-green-300 border-green-500/30 hover:bg-green-500/30'
+                      : 'bg-blue-500/20 text-blue-300 border-blue-500/30 hover:bg-blue-500/30'
+                  ]">
+            <span class="text-sm">{{ isStreaming ? '📡' : '🔌' }}</span>
+            <span>{{ isStreaming ? '停止实时流' : '开启实时流' }}</span>
+          </button>
+
           <button @click="toggleAutoScroll"
                   :class="[
                     'flex items-center gap-2 px-4 py-2 border rounded-md transition-all duration-200',
@@ -51,7 +62,7 @@
                       : 'bg-gray-500/20 text-gray-300 border-gray-500/30 hover:bg-gray-500/30'
                   ]">
             <span class="text-sm">📜</span>
-            <span>{{ autoScroll ? '停止自动刷新' : '开启自动刷新' }}</span>
+            <span>{{ autoScroll ? '停止自动滚动' : '开启自动滚动' }}</span>
           </button>
         </div>
 
@@ -66,6 +77,7 @@
               <option value="warn">Warn</option>
               <option value="info">Info</option>
               <option value="debug">Debug</option>
+              <option value="trace">Trace</option>
             </select>
           </div>
 
@@ -92,8 +104,17 @@
               <span class="text-yellow-400">Warn: {{ getLogCount('warn') }}</span>
               <span class="text-blue-400">Info: {{ getLogCount('info') }}</span>
               <span class="text-purple-400">Debug: {{ getLogCount('debug') }}</span>
+              <span class="text-purple-300">Trace: {{ getLogCount('trace') }}</span>
             </div>
-            <div>
+            <div class="flex items-center space-x-3">
+              <span v-if="isStreaming" class="text-green-400 flex items-center gap-1">
+                <span class="animate-pulse">🔴</span>
+                <span>实时流</span>
+              </span>
+              <span v-if="isLoading" class="text-blue-400 flex items-center gap-1">
+                <span class="animate-spin">⏳</span>
+                <span>加载中...</span>
+              </span>
               <span>最后更新: {{ lastUpdateTime }}</span>
             </div>
           </div>
@@ -107,6 +128,8 @@
             <div class="text-6xl mb-4 opacity-50">📋</div>
             <div class="text-slate-400 text-lg font-medium mb-2">暂无日志记录</div>
             <div class="text-slate-500 text-sm">系统日志将在这里显示</div>
+            <div v-if="isLoading" class="text-blue-400 text-sm mt-2">正在加载日志...</div>
+            <div v-if="errorMessage" class="text-red-400 text-sm mt-2">{{ errorMessage }}</div>
           </div>
 
           <div v-else>
@@ -118,7 +141,7 @@
                  ]">
               <div class="flex items-start space-x-3">
                 <!-- 时间戳 -->
-                <div class="text-slate-500 w-20 flex-shrink-0">
+                <div class="text-slate-500 w-20 flex-shrink-0" :title="formatLogTimestamp(log.timestamp)">
                   {{ formatLogTime(log.timestamp) }}
                 </div>
 
@@ -130,8 +153,12 @@
                 <!-- 日志内容 -->
                 <div class="flex-1 break-all">
                   <div class="text-slate-200">{{ log.message }}</div>
-                  <div v-if="log.file" class="text-slate-500 text-xs mt-1 flex items-center gap-2">
+                  <div class="text-slate-500 text-xs mt-1 flex items-center gap-2">
                     <span class="inline-flex items-center gap-1">
+                      <span class="text-purple-400">🎯</span>
+                      <span class="text-purple-300">{{ log.target }}</span>
+                    </span>
+                    <span v-if="log.file" class="inline-flex items-center gap-1">
                       <span class="text-blue-400">📄</span>
                       <span class="text-blue-300">{{ log.file }}</span>
                     </span>
@@ -149,19 +176,22 @@
     <section class="h-[60px] bg-slate-800 border-t border-slate-600 px-6 flex items-center justify-between">
       <div class="flex items-center space-x-6">
         <div class="flex items-center space-x-2">
-          <div class="w-3 h-3 rounded-full bg-green-500"></div>
-          <span class="text-sm text-slate-300">日志系统运行正常</span>
+          <div :class="[
+            'w-3 h-3 rounded-full transition-colors duration-200',
+            isStreaming ? 'bg-green-500 animate-pulse' : 'bg-gray-500'
+          ]"></div>
+          <span class="text-sm text-slate-300">
+            {{ isStreaming ? '日志实时流运行正常' : '日志系统运行正常' }}
+          </span>
         </div>
         <div class="flex items-center space-x-2 text-sm text-slate-400">
-          <span>日志文件位置: {{ getLogFileDir()+'app_logs.log' }}</span>
-          <button
-            @click="openLogFileDir"
-            class="ml-2 p-1 rounded hover:bg-slate-700 transition-colors"
-            title="打开日志文件夹">
-            <svg class="w-5 h-5 text-blue-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M3 7V17C3 18.1046 3.89543 19 5 19H19C20.1046 19 21 18.1046 21 17V9C21 7.89543 20.1046 7 19 7H13L11 5H5C3.89543 5 3 5.89543 3 7Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+          <span>💾 内存缓冲区</span>
+          <span class="text-slate-500">|</span>
+          <span>已存储: {{ logs.length }} 条</span>
+          <span class="text-slate-500">|</span>
+          <span>容量: {{ maxLogEntries }} 条</span>
+          <span class="text-slate-500">|</span>
+          <span class="text-xs text-slate-500">满时自动覆盖旧日志</span>
         </div>
       </div>
 
@@ -173,53 +203,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { useAppStore } from '@/stores/appStore'
+import { useLogStore } from '@/stores/logStore'
 
 const appStore = useAppStore()
-
+const logStore = useLogStore()
 const router = useRouter()
 
 // 响应式数据
-const lastUpdateTime = ref('')
 const autoScroll = ref(true)
 const selectedLogLevel = ref('all')
 const searchKeyword = ref('')
 const logContainer = ref<HTMLElement>()
-
-// 日志数据结构
-interface LogEntry {
-  timestamp: number
-  level: 'error' | 'warn' | 'info' | 'debug'
-  message: string
-  file?: string
-  line?: number
-}
-
-const logs = ref<LogEntry[]>([])
+const autoRefreshInterval = ref(5000) // 5秒自动刷新间隔
+const showRealTimeToggle = ref(true)
 
 // 计算属性
 const filteredLogs = computed(() => {
-  let filtered = logs.value
+  let filtered = logStore.filteredLogs
 
-  // 按日志级别过滤
+  // 在Store过滤基础上进行前端额外过滤
   if (selectedLogLevel.value !== 'all') {
     filtered = filtered.filter(log => log.level === selectedLogLevel.value)
   }
 
-  // 按关键词过滤
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase()
     filtered = filtered.filter(log =>
       log.message.toLowerCase().includes(keyword) ||
+      log.target.toLowerCase().includes(keyword) ||
       (log.file && log.file.toLowerCase().includes(keyword))
     )
   }
 
-  return filtered.sort((a, b) => a.timestamp - b.timestamp)
+  return filtered
 })
+
+const lastUpdateTime = computed(() => logStore.lastUpdateTime)
+const isLoading = computed(() => logStore.isLoading)
+const isStreaming = computed(() => logStore.isStreaming)
+const logStats = computed(() => logStore.logLevelCounts)
+const errorMessage = computed(() => logStore.error)
+const logs = computed(() => logStore.logs)
 
 // 方法
 const goBack = () => {
@@ -227,48 +255,52 @@ const goBack = () => {
 }
 
 const refreshLogs = async () => {
-  try {
-    console.log('正在获取系统日志...')
+  await logStore.loadRecentLogs(1000)
+  await scrollToBottom()
+}
 
-    // 调用 Tauri 命令获取系统日志
-    const newLogs = await invoke('get_system_logs') as LogEntry[]
-    logs.value = newLogs
-
-        console.log(`成功获取 ${newLogs.length} 条日志`)
-
-    // 日志加载后总是滚动到底部显示最新日志
-    await scrollToBottom()
-  } catch (error) {
-    console.error('刷新日志失败:', error)
-    // 显示错误提示
-    logs.value = [{
-      timestamp: Date.now(),
-      level: 'error',
-      message: `获取日志失败: ${error}`,
-      file: undefined,
-      line: undefined
-    }]
+const startRealTimeStream = async () => {
+  if (isStreaming.value) {
+    await logStore.stopLogStream()
+    autoScroll.value = false
+  } else {
+    await logStore.startLogStream()
+    autoScroll.value = true
+    // 开启实时流后立即滚动到底部
+    setTimeout(async () => {
+      await scrollToBottom()
+    }, 100)
   }
 }
 
-const clearLogs = () => {
-  logs.value = []
+const updateLogFilters = () => {
+  const filters: any = {}
+  
+  if (selectedLogLevel.value !== 'all') {
+    filters.level = selectedLogLevel.value
+  }
+  
+  if (searchKeyword.value) {
+    filters.keywords = [searchKeyword.value]
+  }
+  
+  logStore.updateFilters(filters)
+}
+
+const clearLogs = async () => {
+  await logStore.clearLogs()
 }
 
 const toggleAutoScroll = () => {
   autoScroll.value = !autoScroll.value
-  console.log(autoScroll.value ? '已开启自动刷新' : '已停止自动刷新')
+  console.log(autoScroll.value ? '已开启自动滚动' : '已停止自动滚动')
 }
 
 const scrollToBottom = async () => {
   await nextTick()
   if (logContainer.value) {
-    // 延迟一下确保DOM已更新
-    setTimeout(() => {
-      if (logContainer.value) {
-        logContainer.value.scrollTop = logContainer.value.scrollHeight
-      }
-    }, 100)
+    // 使用最直接有效的方式
+    logContainer.value.scrollTop = logContainer.value.scrollHeight
   }
 }
 
@@ -282,12 +314,25 @@ const formatLogTime = (timestamp: number): string => {
   })
 }
 
+const formatLogTimestamp = (timestamp: number): string => {
+  const date = new Date(timestamp)
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  })
+}
+
 const getLogLevelClass = (level: string): string => {
   const classes: Record<string, string> = {
     'error': 'border-l-4 border-red-500 bg-red-500/5',
     'warn': 'border-l-4 border-yellow-500 bg-yellow-500/5',
     'info': 'border-l-4 border-blue-500 bg-blue-500/5',
-    'debug': 'border-l-4 border-purple-500 bg-purple-500/5'
+    'debug': 'border-l-4 border-purple-500 bg-purple-500/5',
+    'trace': 'border-l-4 border-pink-500 bg-pink-500/5'
   }
   return classes[level] || 'border-l-4 border-gray-500 bg-gray-500/5'
 }
@@ -297,7 +342,8 @@ const getLogLevelIcon = (level: string): string => {
     'error': 'text-red-400',
     'warn': 'text-yellow-400',
     'info': 'text-blue-400',
-    'debug': 'text-purple-400'
+    'debug': 'text-purple-400',
+    'trace': 'text-pink-400'
   }
   return classes[level] || 'text-gray-400'
 }
@@ -307,40 +353,54 @@ const getLogLevelIconText = (level: string): string => {
     'error': '❌',
     'warn': '⚠️',
     'info': 'ℹ️',
-    'debug': '🐛'
+    'debug': '🐛',
+    'trace': '🔍'
   }
   return icons[level] || '📝'
 }
 
 const getLogCount = (level: string): number => {
-  return logs.value.filter(log => log.level === level).length
+  return logStats.value[level as keyof typeof logStats.value] || 0
 }
 
-const getLogFileDir = (): string => {
-  const platform = navigator.platform.toLowerCase()
-  if (platform.includes('mac')) {
-    return '~/Library/Logs/com.big-data-rpa-v4.my/'
-  } else if (platform.includes('win')) {
-    return '%LOCALAPPDATA%\\com.big-data-rpa-v4.my\\logs\\'
-  } else {
-    return '~/.local/share/com.big-data-rpa-v4.my/logs/'
+// 监听器
+watch(filteredLogs, async () => {
+  if (autoScroll.value) {
+    // 立即滚动，然后再次确保滚动到位
+    await scrollToBottom()
+    setTimeout(async () => {
+      await scrollToBottom()
+    }, 10)
   }
-}
+}, { flush: 'post' })
 
-const openLogFileDir = () => {
-  const logFileDir = getLogFileDir()
-  console.log("打开日志文件夹",logFileDir)
+// 同时监听logs变化，确保实时流中的新日志也能触发滚动
+watch(() => logStore.logs, async () => {
+  if (autoScroll.value && isStreaming.value) {
+    await scrollToBottom()
+    setTimeout(async () => {
+      await scrollToBottom()
+    }, 10)
+  }
+}, { flush: 'post', deep: true })
 
-  invoke('open_folder', { path: logFileDir })
-}
+watch([selectedLogLevel, searchKeyword], () => {
+  updateLogFilters()
+}, { deep: true })
 
-onMounted(() => {
-  // 初始化时加载日志
-  refreshLogs()
+onMounted(async () => {
+  // 初始化时加载历史日志
+  await refreshLogs()
+  
+  // 自动启动实时流
+  if (showRealTimeToggle.value) {
+    await startRealTimeStream()
+  }
 })
 
-onUnmounted(() => {
-  // No need to clear timers as the store handles it
+onUnmounted(async () => {
+  // 清理资源
+  await logStore.cleanup()
 })
 </script>
 
