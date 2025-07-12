@@ -155,7 +155,7 @@ pub fn init_capture_system() -> Result<()> {
 
 // 启动数据包捕获
 pub fn start_capture_with_device(device_name: String) -> Result<()> {
-    info!("启动数据包捕获，设备: {}", device_name);
+    info!("启动数据包捕获，设备: {device_name}");
     
     // 检查设备名称
     if device_name.trim().is_empty() {

@@ -1,6 +1,6 @@
 [package]
 name = "big-data-rpa-v4"
-version = "0.8.0"
+version = "0.9.0"
 description = "数字重庆业务数据巡查自动化系统"
 authors = ["you"]
 edition = "2021"
@@ -33,6 +33,7 @@ regex = "1.11.1"
 etherparse = "0.18.0"
 pktparse = "0.7.1"
 tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
 dirs = "5.0"
 # 新增无锁和异步相关依赖
 tokio = { version = "1.40", features = ["full"] }

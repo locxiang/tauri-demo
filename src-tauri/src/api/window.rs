@@ -7,7 +7,7 @@ pub async fn create_packet_window(
     width: f64,
     height: f64,
 ) -> Result<(), String> {
-    println!("创建数据包详情窗口: {}", url);
+    println!("创建数据包详情窗口: {url}");
     // 创建新窗口
     tauri::WebviewWindowBuilder::new(
         &app,

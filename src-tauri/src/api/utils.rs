@@ -15,10 +15,10 @@ pub async fn open_folder(path: String) -> Result<(), String> {
     let command = "xdg-open";
     
     // 展开路径中的 ~ 符号
-    let expanded_path = if path.starts_with("~/") {
+    let expanded_path = if let Some(path) = path.strip_prefix("~/") {
         match dirs::home_dir() {
             Some(mut home) => {
-                home.push(&path[2..]);
+                home.push(path);
                 home.to_string_lossy().into_owned()
             },
             None => return Err("无法获取用户主目录".to_string())
@@ -27,7 +27,7 @@ pub async fn open_folder(path: String) -> Result<(), String> {
         path
     };
     
-    log::info!("尝试打开文件夹: {}", expanded_path);
+    log::info!("尝试打开文件夹: {expanded_path}");
     
     std::process::Command::new(command)
         .arg(&expanded_path)

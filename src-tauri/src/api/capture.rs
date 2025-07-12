@@ -5,10 +5,7 @@ use tauri::ipc::Channel;
 #[tauri::command]
 pub fn get_capture_status() -> capture::CaptureStatus {
     // 打印日志显示当前捕获状态
-    println!("获取捕获状态: 正在返回当前状态");
-    let status = capture::get_capture_status();
-    println!("捕获状态: {:?}", status);
-    status
+    capture::get_capture_status()
 }
 
 // 设置状态更新通道
@@ -26,7 +23,6 @@ pub fn set_http_channel(channel: Channel<capture::HttpPacket>) -> Result<(), Str
 // 启动数据包捕获
 #[tauri::command]
 pub fn init_capture(device_name: String) -> Result<(), String> {
-    println!("start_capture: {}", device_name);
     capture::start_capture_with_device(device_name.clone()).map_err(|e| e.to_string())
 }
 

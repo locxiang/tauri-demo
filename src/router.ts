@@ -6,6 +6,7 @@ import ProxyController from "./views/ProxyController/index.vue";
 import PacketDetailWindow from "./views/PacketWindows/index.vue";
 import SystemPermissions from "./views/SystemPermissions/index.vue";
 import SystemLogs from "./views/SystemLogs/index.vue";
+import BiDataMonitor from "./views/BiDataMonitor/index.vue";
 
 // 路由配置
 const routes = [
@@ -38,6 +39,11 @@ const routes = [
     path: "/dashboard",
     name: "DashboardPage",
     component: Dashboard
+  },
+  {
+    path: "/bi-monitor",
+    name: "BiDataMonitor", 
+    component: BiDataMonitor
   }
 ];
 

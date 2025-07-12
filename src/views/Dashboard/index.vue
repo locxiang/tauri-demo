@@ -348,8 +348,8 @@ const handleModuleClick = (module: any) => {
   console.log('点击了模块:', module.name);
   // 可以根据不同模块进行不同的处理
   if (module.id === 1) {
-    // 数据申报系统 - 跳转到代理工具
-    openProxyWindow();
+    // BI系统数据异常监控 - 跳转到BI监控页面
+    openBiMonitorPage();
   } else {
     // 其他模块的处理逻辑
     console.log(`模块 ${module.name} 功能开发中...`);
@@ -383,6 +383,11 @@ const openPermissionsPage = () => {
 // 打开日志查看页面
 const openLogsPage = () => {
   router.push('/logs');
+};
+
+// 打开BI数据监控页面
+const openBiMonitorPage = () => {
+  router.push('/bi-monitor');
 };
 
 

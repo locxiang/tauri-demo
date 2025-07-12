@@ -64,6 +64,12 @@
             <span class="text-sm">📜</span>
             <span>{{ autoScroll ? '停止自动滚动' : '开启自动滚动' }}</span>
           </button>
+
+          <button @click="startTestGenerator"
+                  class="flex items-center gap-2 px-4 py-2 bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-md hover:bg-purple-500/30 transition-all duration-200">
+            <span class="text-sm">🧪</span>
+            <span>启动测试日志</span>
+          </button>
         </div>
 
         <!-- 右侧过滤器 -->
@@ -99,7 +105,9 @@
         <div class="bg-slate-800/60 border-b border-blue-500/20 px-4 py-2">
           <div class="flex items-center justify-between text-xs text-slate-400">
             <div class="flex items-center space-x-4">
-              <span>总计: {{ filteredLogs.length }} 条日志</span>
+              <span>总计: {{ totalLogCount }} 条日志</span>
+              <span class="text-slate-500">内存中: {{ logs.length }} 条</span>
+              <span v-if="filteredLogs.length !== logs.length" class="text-blue-400">显示: {{ filteredLogs.length }} 条</span>
               <span class="text-red-400">Error: {{ getLogCount('error') }}</span>
               <span class="text-yellow-400">Warn: {{ getLogCount('warn') }}</span>
               <span class="text-blue-400">Info: {{ getLogCount('info') }}</span>
@@ -123,46 +131,69 @@
         <!-- 日志列表 -->
         <div ref="logContainer"
              class="h-[calc(100%-40px)] overflow-y-auto font-mono text-xs leading-relaxed">
-          <div v-if="filteredLogs.length === 0"
+          <!-- 无日志显示 -->
+          <div v-if="logs.length === 0"
                class="flex flex-col items-center justify-center h-full text-center">
             <div class="text-6xl mb-4 opacity-50">📋</div>
             <div class="text-slate-400 text-lg font-medium mb-2">暂无日志记录</div>
             <div class="text-slate-500 text-sm">系统日志将在这里显示</div>
             <div v-if="isLoading" class="text-blue-400 text-sm mt-2">正在加载日志...</div>
             <div v-if="errorMessage" class="text-red-400 text-sm mt-2">{{ errorMessage }}</div>
+            <div class="text-slate-400 text-sm mt-2">
+              <div>调试信息:</div>
+              <div>• 总产生日志: {{ totalLogCount }}</div>
+              <div>• 内存中日志: {{ logs.length }}</div>
+              <div>• 实时流状态: {{ isStreaming ? '开启' : '关闭' }}</div>
+            </div>
           </div>
 
+          <!-- 有日志但被过滤掉了 -->
+          <div v-else-if="filteredLogs.length === 0"
+               class="flex flex-col items-center justify-center h-full text-center">
+            <div class="text-6xl mb-4 opacity-50">🔍</div>
+            <div class="text-slate-400 text-lg font-medium mb-2">没有符合条件的日志</div>
+            <div class="text-slate-500 text-sm">当前过滤器隐藏了所有日志</div>
+            <div class="text-slate-400 text-sm mt-2">
+              <div>调试信息:</div>
+              <div>• 总产生日志: {{ totalLogCount }}</div>
+              <div>• 内存中日志: {{ logs.length }}</div>
+              <div>• 过滤后显示: {{ filteredLogs.length }}</div>
+              <div>• 当前过滤器: 级别={{ selectedLogLevel }}, 搜索={{ searchKeyword || '无' }}</div>
+            </div>
+          </div>
+
+          <!-- 显示日志 -->
           <div v-else>
-            <div v-for="(log, index) in filteredLogs"
+            <div v-for="(logEntry, index) in filteredLogs.slice(-100)"
                  :key="index"
                  :class="[
                    'px-4 py-2 border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors duration-200',
-                   getLogLevelClass(log.level)
+                   getLogLevelClass(logEntry.level)
                  ]">
               <div class="flex items-start space-x-3">
                 <!-- 时间戳 -->
-                <div class="text-slate-500 w-20 flex-shrink-0" :title="formatLogTimestamp(log.timestamp)">
-                  {{ formatLogTime(log.timestamp) }}
+                <div class="text-slate-500 w-20 flex-shrink-0" :title="formatLogTimestamp(logEntry.timestamp)">
+                  {{ formatLogTime(logEntry.timestamp) }}
                 </div>
 
                 <!-- 日志级别图标 -->
                 <div class="w-6 flex-shrink-0">
-                  <span :class="getLogLevelIcon(log.level)">{{ getLogLevelIconText(log.level) }}</span>
+                  <span :class="getLogLevelIcon(logEntry.level)">{{ getLogLevelIconText(logEntry.level) }}</span>
                 </div>
 
                 <!-- 日志内容 -->
                 <div class="flex-1 break-all">
-                  <div class="text-slate-200">{{ log.message }}</div>
+                  <div class="text-slate-200">{{ logEntry.message }}</div>
                   <div class="text-slate-500 text-xs mt-1 flex items-center gap-2">
-                    <span class="inline-flex items-center gap-1">
+                    <span v-if="logEntry.module" class="inline-flex items-center gap-1">
                       <span class="text-purple-400">🎯</span>
-                      <span class="text-purple-300">{{ log.target }}</span>
+                      <span class="text-purple-300">{{ logEntry.module }}</span>
                     </span>
-                    <span v-if="log.file" class="inline-flex items-center gap-1">
+                    <span v-if="logEntry.file" class="inline-flex items-center gap-1">
                       <span class="text-blue-400">📄</span>
-                      <span class="text-blue-300">{{ log.file }}</span>
+                      <span class="text-blue-300">{{ logEntry.file }}</span>
                     </span>
-                    <span v-if="log.line" class="text-slate-400">行号: {{ log.line }}</span>
+                    <span v-if="logEntry.line" class="text-slate-400">行号: {{ logEntry.line }}</span>
                   </div>
                 </div>
               </div>
@@ -234,7 +265,7 @@ const filteredLogs = computed(() => {
     const keyword = searchKeyword.value.toLowerCase()
     filtered = filtered.filter(log =>
       log.message.toLowerCase().includes(keyword) ||
-      log.target.toLowerCase().includes(keyword) ||
+      (log.module && log.module.toLowerCase().includes(keyword)) ||
       (log.file && log.file.toLowerCase().includes(keyword))
     )
   }
@@ -248,6 +279,8 @@ const isStreaming = computed(() => logStore.isStreaming)
 const logStats = computed(() => logStore.logLevelCounts)
 const errorMessage = computed(() => logStore.error)
 const logs = computed(() => logStore.logs)
+const maxLogEntries = computed(() => logStore.maxLogEntries)
+const totalLogCount = computed(() => logStore.totalLogCount)
 
 // 方法
 const goBack = () => {
@@ -256,7 +289,9 @@ const goBack = () => {
 
 const refreshLogs = async () => {
   await logStore.loadRecentLogs(1000)
-  await scrollToBottom()
+  if (autoScroll.value) {
+    scrollToBottom()
+  }
 }
 
 const startRealTimeStream = async () => {
@@ -267,23 +302,23 @@ const startRealTimeStream = async () => {
     await logStore.startLogStream()
     autoScroll.value = true
     // 开启实时流后立即滚动到底部
-    setTimeout(async () => {
-      await scrollToBottom()
+    setTimeout(() => {
+      scrollToBottom()
     }, 100)
   }
 }
 
 const updateLogFilters = () => {
   const filters: any = {}
-  
+
   if (selectedLogLevel.value !== 'all') {
     filters.level = selectedLogLevel.value
   }
-  
+
   if (searchKeyword.value) {
     filters.keywords = [searchKeyword.value]
   }
-  
+
   logStore.updateFilters(filters)
 }
 
@@ -293,13 +328,14 @@ const clearLogs = async () => {
 
 const toggleAutoScroll = () => {
   autoScroll.value = !autoScroll.value
+  if (autoScroll.value) {
+    scrollToBottom()
+  }
   console.log(autoScroll.value ? '已开启自动滚动' : '已停止自动滚动')
 }
 
-const scrollToBottom = async () => {
-  await nextTick()
+const scrollToBottom = () => {
   if (logContainer.value) {
-    // 使用最直接有效的方式
     logContainer.value.scrollTop = logContainer.value.scrollHeight
   }
 }
@@ -360,26 +396,34 @@ const getLogLevelIconText = (level: string): string => {
 }
 
 const getLogCount = (level: string): number => {
-  return logStats.value[level as keyof typeof logStats.value] || 0
+  // 统计所有日志中该级别的数量，而不是过滤后的
+  return logs.value.filter(log => log.level === level).length
+}
+
+const startTestGenerator = async () => {
+  try {
+    await invoke('start_test_log_generator')
+    console.log('🧪 测试日志生成器已启动')
+  } catch (err) {
+    console.error('❌ 启动测试日志生成器失败:', err)
+  }
 }
 
 // 监听器
-watch(filteredLogs, async () => {
+watch(filteredLogs, () => {
   if (autoScroll.value) {
-    // 立即滚动，然后再次确保滚动到位
-    await scrollToBottom()
-    setTimeout(async () => {
-      await scrollToBottom()
+    // 延迟滚动以等待DOM更新
+    setTimeout(() => {
+      scrollToBottom()
     }, 10)
   }
 }, { flush: 'post' })
 
 // 同时监听logs变化，确保实时流中的新日志也能触发滚动
-watch(() => logStore.logs, async () => {
+watch(() => logStore.logs, () => {
   if (autoScroll.value && isStreaming.value) {
-    await scrollToBottom()
-    setTimeout(async () => {
-      await scrollToBottom()
+    setTimeout(() => {
+      scrollToBottom()
     }, 10)
   }
 }, { flush: 'post', deep: true })
@@ -391,7 +435,7 @@ watch([selectedLogLevel, searchKeyword], () => {
 onMounted(async () => {
   // 初始化时加载历史日志
   await refreshLogs()
-  
+
   // 自动启动实时流
   if (showRealTimeToggle.value) {
     await startRealTimeStream()

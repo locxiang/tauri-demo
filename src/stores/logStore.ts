@@ -3,30 +3,27 @@ import { ref, computed } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
-// 日志条目接口
+// 日志条目接口 - 更新为匹配后端结构
 export interface LogEntry {
-  id: number
   timestamp: number
   level: 'error' | 'warn' | 'info' | 'debug' | 'trace'
-  target: string
   message: string
-  context: Record<string, any>
+  module?: string  // 后端使用module而不是target
   file?: string
   line?: number
 }
 
-// 日志过滤器接口
+// 日志过滤器接口 - 更新为匹配后端结构
 export interface LogFilters {
-  level?: 'error' | 'warn' | 'info' | 'debug' | 'trace'
-  keywords?: string[]
-  targets?: string[]
-  since?: number
-  until?: number
+  level?: string
+  module?: string  // 后端使用module而不是targets
+  start_time?: number  // 后端使用start_time而不是since
+  end_time?: number    // 后端使用end_time而不是until
 }
 
-// 日志统计信息
+// 日志统计信息 - 更新为匹配后端结构
 export interface LogStats {
-  total_logs: number
+  total_count: number
   error_count: number
   warn_count: number
   info_count: number
@@ -41,7 +38,7 @@ export const useLogStore = defineStore('log', () => {
   const isLoading = ref(false)
   const currentFilters = ref<LogFilters>({})
   const stats = ref<LogStats>({
-    total_logs: 0,
+    total_count: 0,
     error_count: 0,
     warn_count: 0,
     info_count: 0,
@@ -51,6 +48,7 @@ export const useLogStore = defineStore('log', () => {
   const maxLogEntries = ref(1000) // 最大保留的日志条目数
   const lastUpdateTime = ref('')
   const error = ref<string | null>(null)
+  const totalLogCount = ref(0) // 总日志数量（累计产生的）
 
   // 事件监听器
   let logStreamListener: any = null
@@ -64,30 +62,20 @@ export const useLogStore = defineStore('log', () => {
       filtered = filtered.filter(log => log.level === currentFilters.value.level)
     }
 
-    // 按关键词过滤
-    if (currentFilters.value.keywords && currentFilters.value.keywords.length > 0) {
-      filtered = filtered.filter(log => 
-        currentFilters.value.keywords!.some(keyword => 
-          log.message.toLowerCase().includes(keyword.toLowerCase()) ||
-          log.target.toLowerCase().includes(keyword.toLowerCase())
-        )
+    // 按模块过滤 - 更新为使用module字段
+    if (currentFilters.value.module) {
+      filtered = filtered.filter(log =>
+        log.module && log.module.includes(currentFilters.value.module!)
       )
     }
 
-    // 按目标模块过滤
-    if (currentFilters.value.targets && currentFilters.value.targets.length > 0) {
-      filtered = filtered.filter(log => 
-        currentFilters.value.targets!.includes(log.target)
-      )
+    // 按时间范围过滤 - 更新字段名
+    if (currentFilters.value.start_time) {
+      filtered = filtered.filter(log => log.timestamp >= currentFilters.value.start_time!)
     }
 
-    // 按时间范围过滤
-    if (currentFilters.value.since) {
-      filtered = filtered.filter(log => log.timestamp >= currentFilters.value.since!)
-    }
-
-    if (currentFilters.value.until) {
-      filtered = filtered.filter(log => log.timestamp <= currentFilters.value.until!)
+    if (currentFilters.value.end_time) {
+      filtered = filtered.filter(log => log.timestamp <= currentFilters.value.end_time!)
     }
 
     return filtered.sort((a, b) => a.timestamp - b.timestamp)
@@ -115,20 +103,25 @@ export const useLogStore = defineStore('log', () => {
   const loadRecentLogs = async (limit: number = 1000) => {
     isLoading.value = true
     error.value = null
-    
+
     try {
       console.log('🔄 加载最近的日志...')
-      const recentLogs = await invoke<LogEntry[]>('get_recent_logs', { 
-        limit, 
-        filters: currentFilters.value.level || currentFilters.value.keywords || currentFilters.value.targets 
-          ? currentFilters.value 
-          : null 
+      const recentLogs = await invoke<LogEntry[]>('get_recent_logs', {
+        limit
       })
-      
+
       logs.value = recentLogs
       lastUpdateTime.value = new Date().toLocaleTimeString()
-      
-      console.log(`✅ 成功加载 ${recentLogs.length} 条日志`)
+
+      // 同时获取总日志数量
+      try {
+        const totalCount = await invoke<number>('get_total_log_count')
+        totalLogCount.value = totalCount
+      } catch (err) {
+        console.warn('获取总日志数量失败:', err)
+      }
+
+      console.log(`✅ 成功加载 ${recentLogs.length} 条日志, 总计产生 ${totalLogCount.value} 条`)
     } catch (err) {
       console.error('❌ 加载日志失败:', err)
       error.value = `加载日志失败: ${err}`
@@ -144,35 +137,39 @@ export const useLogStore = defineStore('log', () => {
     }
 
     try {
-      console.log('🚀 开始订阅日志流...')
-      
-      // 订阅后端日志流
-      await invoke('subscribe_log_stream', { 
-        filters: currentFilters.value.level || currentFilters.value.keywords || currentFilters.value.targets 
-          ? currentFilters.value 
-          : null 
-      })
+      console.log('🚀 开始订阅日志流 (批量模式)...')
 
-      // 监听日志流事件
-      logStreamListener = await listen<LogEntry>('log-stream', (event) => {
-        const newLog = event.payload
+      // 订阅后端日志流
+      await invoke('subscribe_log_stream')
+
+      // 监听批量日志流事件
+      logStreamListener = await listen<LogEntry[]>('log-stream-batch', async (event) => {
+        const newLogs = event.payload
         
-        // 添加新日志到前端
-        logs.value.push(newLog)
-        
+        // 一次性添加新日志到前端
+        logs.value.push(...newLogs)
+
         // 保持最大数量限制
         if (logs.value.length > maxLogEntries.value) {
-          logs.value = logs.value.slice(-maxLogEntries.value)
+          logs.value = logs.value.slice(logs.value.length - maxLogEntries.value)
         }
-        
+
+        // 更新总日志数量
+        try {
+          const totalCount = await invoke<number>('get_total_log_count')
+          totalLogCount.value = totalCount
+        } catch (err) {
+          console.warn('更新总日志数量失败:', err)
+        }
+
         // 更新最后更新时间
         lastUpdateTime.value = new Date().toLocaleTimeString()
-        
-        console.log(`📨 收到新日志: [${newLog.level.toUpperCase()}] ${newLog.message}`)
+
+        console.log(`📨 收到 ${newLogs.length} 条新日志, 总计 ${totalLogCount.value} 条`)
       })
 
       isStreaming.value = true
-      console.log('✅ 日志流订阅成功')
+      console.log('✅ 日志流订阅成功 (批量模式)')
     } catch (err) {
       console.error('❌ 订阅日志流失败:', err)
       error.value = `订阅日志流失败: ${err}`
@@ -187,16 +184,13 @@ export const useLogStore = defineStore('log', () => {
 
     try {
       console.log('🛑 停止日志流订阅...')
-      
-      // 取消订阅后端日志流
-      await invoke('unsubscribe_log_stream')
-      
+
       // 取消前端事件监听
       if (logStreamListener) {
         logStreamListener()
         logStreamListener = null
       }
-      
+
       isStreaming.value = false
       console.log('✅ 日志流订阅已停止')
     } catch (err) {
@@ -208,14 +202,14 @@ export const useLogStore = defineStore('log', () => {
   const clearLogs = async () => {
     try {
       console.log('🗑️ 清空日志...')
-      
+
       // 清空后端日志缓冲区
       await invoke('clear_logs')
-      
+
       // 清空前端日志
       logs.value = []
       lastUpdateTime.value = new Date().toLocaleTimeString()
-      
+
       console.log('✅ 日志已清空')
     } catch (err) {
       console.error('❌ 清空日志失败:', err)
@@ -256,6 +250,7 @@ export const useLogStore = defineStore('log', () => {
     maxLogEntries,
     lastUpdateTime,
     error,
+    totalLogCount,
 
     // 计算属性
     filteredLogs,
