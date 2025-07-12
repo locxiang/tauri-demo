@@ -42,14 +42,13 @@ dashmap = "6.1"
 thiserror = "1.0"
 toml = "0.8"
 futures = "0.3"
-reqwest = "0.12"
+# HTTP客户端
+reqwest = { version = "0.12", features = ["json", "cookies"] }
 # 平台特定依赖
 [target.'cfg(unix)'.dependencies]
 nix = "0.29"
 # Base64编解码
 base64 = "0.22"
-# HTTP客户端
-reqwest = { version = "0.12", features = ["json", "cookies"] }
 url = "2.5"
 
 [profile.dev]
