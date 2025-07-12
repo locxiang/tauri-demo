@@ -1,12 +1,15 @@
 pub mod capture;
 pub mod auth;
-pub mod system;
 pub mod window;
-pub mod logging;
+pub mod utils;
+pub mod logread;
 
-// 重新导出所有API命令
 pub use capture::*;
 pub use auth::*;
-pub use system::*;
 pub use window::*;
-pub use logging::*;
+pub use utils::*;
+pub use logread::*;
+
+// Re-export initialization functions from service modules
+pub use crate::service::capture::{init_app_handle, init_capture_system, has_capture_prerequisites};
+pub use crate::service::auth::init_auth_system;
