@@ -50,7 +50,7 @@
         <!-- 数据目录按钮 -->
         <button
           @click="selectDataDirectory"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-indigo-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-indigo-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group cursor-pointer"
         >
           <span class="text-lg">📁</span>
           <span class="text-sm">{{ dataDirectory ? '更换目录' : '选择数据目录' }}</span>
@@ -61,7 +61,7 @@
         <button
           @click="associateAllFiles"
           :disabled="!dataDirectory || isAssociating || dataList.length === 0"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-md text-slate-200 hover:from-purple-500/20 hover:to-pink-500/20 hover:border-purple-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-md text-slate-200 hover:from-purple-500/20 hover:to-pink-500/20 hover:border-purple-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group cursor-pointer"
         >
           <span class="text-lg">{{ isAssociating ? '🔄' : '🔗' }}</span>
           <span class="text-sm">{{ isAssociating ? '关联中...' : '一键关联' }}</span>
@@ -82,7 +82,7 @@
     </div>
 
     <!-- 主要内容区域 -->
-    <div class="h-[calc(100vh-60px)] overflow-y-auto p-6 relative z-10">
+    <div class="h-[calc(100vh-60px)] p-6 relative z-10 overflow-hidden">
       <!-- 错误提示 -->
       <div v-if="error" class="bg-gradient-to-br from-red-500/20 to-pink-500/20 backdrop-blur-2xl border border-red-500/30 rounded-xl p-4 mb-6 shadow-2xl flex items-center gap-4">
         <div class="text-2xl animate-icon-pulse">⚠️</div>
@@ -163,10 +163,29 @@
         <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-green-500/80 to-transparent animate-packet-scan"></div>
 
         <div class="p-6 border-b border-green-500/20">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <div class="text-2xl animate-icon-glow">🚨</div>
-              <h2 class="text-lg font-semibold text-slate-200 font-mono tracking-wide">数据异常详情</h2>
+                      <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="text-2xl animate-icon-glow">🚨</div>
+                <h2 class="text-lg font-semibold text-slate-200 font-mono tracking-wide">数据异常详情</h2>
+
+                <!-- 批量操作按钮 -->
+                <div v-if="selectedItems.length > 0" class="flex items-center gap-2 ml-4">
+                  <button
+                    @click="batchAssociateFiles"
+                    :disabled="!dataDirectory || isAssociating"
+                    class="px-3 py-1.5 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg text-green-300 hover:from-green-500/20 hover:to-emerald-500/20 hover:border-green-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
+                    title="批量智能关联"
+                  >
+                    批量关联
+                  </button>
+                  <button
+                    @click="clearSelection"
+                    class="px-3 py-1.5 bg-gradient-to-r from-slate-500/10 to-gray-500/10 border border-slate-500/30 rounded-lg text-slate-300 hover:from-slate-500/20 hover:to-gray-500/20 hover:border-slate-500/50 transition-all duration-300 text-xs font-medium"
+                    title="清除选择"
+                  >
+                    清除选择
+                  </button>
+                </div>
               <div class="flex items-center gap-4">
                 <!-- 异常统计 -->
                 <div class="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-red-500/20 to-pink-500/20 border border-red-500/30 rounded-full">
@@ -178,13 +197,18 @@
                   <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse-custom"></div>
                   <span class="text-sm font-semibold text-green-400">已关联: {{ associatedCount }}</span>
                 </div>
+                <!-- 选中统计 -->
+                <div v-if="selectedItems.length > 0" class="flex items-center gap-2 px-3 py-1 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded-full">
+                  <div class="w-2 h-2 bg-blue-400 rounded-full animate-pulse-custom"></div>
+                  <span class="text-sm font-semibold text-blue-400">已选: {{ selectedItems.length }}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
         <!-- 列表内容 -->
-        <div class="overflow-auto">
+        <div class="overflow-auto max-h-[calc(100vh-400px)]">
           <!-- 加载状态 -->
           <div v-if="isLoading" class="p-8 text-center">
             <div class="inline-flex items-center gap-3">
@@ -209,6 +233,14 @@
               <!-- 表头 -->
               <thead class="bg-gradient-to-r from-slate-800/80 to-slate-700/60 border-b border-slate-600/50">
                 <tr>
+                  <th class="w-12 px-6 py-4 text-center text-xs font-medium text-slate-300 uppercase tracking-wider border-r border-slate-600/30">
+                    <input
+                      type="checkbox"
+                      :checked="isAllSelected"
+                      @change="toggleSelectAll"
+                      class="w-4 h-4 text-green-500 bg-slate-700 border-slate-600 rounded focus:ring-green-500 focus:ring-2"
+                    />
+                  </th>
                   <th class="w-1/6 px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider border-r border-slate-600/30">
                     数据源提供单位
                   </th>
@@ -221,7 +253,7 @@
                   <th class="w-2/6 px-6 py-4 text-left text-xs font-medium text-slate-300 uppercase tracking-wider border-r border-slate-600/30">
                     关联文件
                   </th>
-                  <th class="w-1/6 px-6 py-4 text-center text-xs font-medium text-slate-300 uppercase tracking-wider">
+                  <th class="w-48 px-6 py-4 text-center text-xs font-medium text-slate-300 uppercase tracking-wider">
                     操作
                   </th>
                 </tr>
@@ -234,6 +266,16 @@
                   :key="index"
                   class="hover:bg-slate-800/30 transition-all duration-300 relative group"
                 >
+
+                  <!-- 复选框 -->
+                  <td class="w-12 px-6 py-4 text-center border-r border-slate-700/30">
+                    <input
+                      type="checkbox"
+                      :checked="selectedItems.includes(index)"
+                      @change="toggleSelectItem(index)"
+                      class="w-4 h-4 text-green-500 bg-slate-700 border-slate-600 rounded focus:ring-green-500 focus:ring-2"
+                    />
+                  </td>
 
                   <!-- 数据源提供单位 -->
                   <td class="w-1/6 px-6 py-4 border-r border-slate-700/30">
@@ -252,76 +294,46 @@
 
                   <!-- 关联文件 -->
                   <td class="w-2/6 px-6 py-4 border-r border-slate-700/30">
-                    <div v-if="item.associatedFile" class="space-y-2">
-                      <!-- 已关联的文件 -->
-                      <div class="flex items-start justify-between p-3 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg">
-                        <div class="flex-1 min-w-0">
-                          <!-- 文件名 -->
-                          <div class="text-sm text-green-300 font-semibold break-all">
-                            📄 {{ getFileName(item.associatedFile.path) }}
-                          </div>
-                          <!-- 相对路径 -->
-                          <div class="text-xs text-slate-400 font-mono break-all mt-1" :title="item.associatedFile.path">
-                            {{ getRelativePath(item.associatedFile.path) }}
-                          </div>
-                          <!-- 相似度进度条 -->
-                          <div class="flex items-center gap-2 mt-2">
-                            <span class="text-xs text-slate-500">相似度:</span>
-                            <div class="flex-1 max-w-24 bg-slate-700 rounded-full h-1.5 relative overflow-hidden">
-                              <div
-                                class="h-full bg-gradient-to-r from-green-500 to-cyan-500 rounded-full transition-all duration-500"
-                                :style="{ width: `${item.associatedFile.similarity * 100}%` }"
-                              ></div>
-                            </div>
-                            <span class="text-xs font-semibold text-green-400">{{ (item.associatedFile.similarity * 100).toFixed(1) }}%</span>
-                          </div>
-                        </div>
-                        <button
-                          @click="openFile(item.associatedFile.path)"
-                          class="ml-3 p-2 bg-gradient-to-r from-blue-500/20 to-cyan-500/20 border border-blue-500/30 rounded hover:from-blue-500/30 hover:to-cyan-500/30 transition-all duration-300 flex-shrink-0"
-                          title="打开文件"
-                        >
-                          <svg class="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-2M14 4h6m0 0v6m0-6L10 14"></path>
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    <div v-else class="text-center py-4">
-                      <div class="text-slate-500 text-sm">未关联文件</div>
-                    </div>
+                    <AssociatedFileCard
+                      :associated-file="item.associatedFile"
+                      :data-directory="dataDirectory"
+                      :is-searching-files="isSearchingFiles"
+                      @open-file="openFile"
+                      @reassociate="manualAssociateFile(item, index)"
+                      @remove-association="removeAssociation(item, index)"
+                      @smart-associate="findRelatedFiles(item, index)"
+                      @manual-associate="manualAssociateFile(item, index)"
+                    />
                   </td>
 
                   <!-- 操作按钮 -->
-                  <td class="w-1/6 px-6 py-4 text-center">
-                    <div class="flex justify-center gap-2">
-                      <!-- 智能关联按钮 -->
+                  <td class="w-48 px-6 py-4 text-center">
+                    <div class="flex flex-col gap-2">
+                      <!-- 删除数据源 -->
                       <button
-                        @click="findRelatedFiles(item, index)"
-                        :disabled="!dataDirectory || isSearchingFiles"
-                        class="px-3 py-1.5 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg text-green-300 hover:from-green-500/20 hover:to-emerald-500/20 hover:border-green-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-xs font-medium"
-                        title="智能搜索关联文件"
+                        @click="deleteDataSource(item, index)"
+                        class="px-3 py-1.5 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded text-red-300 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 transition-all duration-300 text-xs font-medium"
+                        title="删除数据源"
                       >
-                        {{ isSearchingFiles ? '🔍' : '🤖' }}
+                        删除数据源
                       </button>
 
-                      <!-- 手动关联按钮 -->
+                      <!-- 修改为手动更新 -->
                       <button
-                        @click="manualAssociateFile(item, index)"
-                        class="px-3 py-1.5 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 rounded-lg text-blue-300 hover:from-blue-500/20 hover:to-indigo-500/20 hover:border-blue-500/50 transition-all duration-300 text-xs font-medium"
-                        :title="item.associatedFile ? '重新选择文件' : '手动选择文件'"
+                        @click="setManualUpdate(item, index)"
+                        class="px-3 py-1.5 bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/30 rounded text-yellow-300 hover:from-yellow-500/20 hover:to-orange-500/20 hover:border-yellow-500/50 transition-all duration-300 text-xs font-medium"
+                        title="修改为手动更新"
                       >
-                        {{ item.associatedFile ? '🔄' : '📁' }}
+                        手动更新
                       </button>
 
-                      <!-- 取消关联按钮 -->
+                      <!-- 上传文件更新 -->
                       <button
-                        v-if="item.associatedFile"
-                        @click="removeAssociation(item, index)"
-                        class="px-3 py-1.5 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-lg text-red-300 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 transition-all duration-300 text-xs font-medium"
-                        title="取消关联"
+                        @click="uploadFileUpdate(item, index)"
+                        class="px-3 py-1.5 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/30 rounded text-purple-300 hover:from-purple-500/20 hover:to-indigo-500/20 hover:border-purple-500/50 transition-all duration-300 text-xs font-medium"
+                        title="上传文件更新"
                       >
-                        ❌
+                        上传更新
                       </button>
                     </div>
                   </td>
@@ -341,6 +353,7 @@ import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { open as shellOpen } from '@tauri-apps/plugin-shell'
+import AssociatedFileCard from './components/AssociatedFileCard.vue'
 
 const router = useRouter()
 
@@ -354,12 +367,20 @@ const isAssociating = ref(false)
 const dataDirectory = ref('')
 const error = ref('')
 
+// 多选相关数据
+const selectedItems = ref<number[]>([])
+
 // 监控状态
 const isMonitoring = computed(() => !!dataDirectory.value)
 
 // 已关联数量
 const associatedCount = computed(() => {
   return dataList.value.filter(item => item.associatedFile).length
+})
+
+// 全选状态
+const isAllSelected = computed(() => {
+  return dataList.value.length > 0 && selectedItems.value.length === dataList.value.length
 })
 
 // 数据列表接口
@@ -391,6 +412,91 @@ const dataList = ref<DataItem[]>([
     provider: '重庆市交通局',
     resourceName: '公共交通运营数据',
     issue: '数据重复率过高，影响统计准确性'
+  },
+  {
+    provider: '重庆市公安局',
+    resourceName: '人口户籍管理数据',
+    issue: '数据加密级别不足，存在安全隐患'
+  },
+  {
+    provider: '重庆市财政局',
+    resourceName: '财政收支统计数据',
+    issue: '数据分类不准确，影响财务分析'
+  },
+  {
+    provider: '重庆市人力资源和社会保障局',
+    resourceName: '就业人员信息数据',
+    issue: '数据完整性不足，缺失关键信息'
+  },
+  {
+    provider: '重庆市生态环境局',
+    resourceName: '环境监测数据',
+    issue: '数据采集频率过低，无法及时反映环境变化'
+  },
+  {
+    provider: '重庆市文化和旅游发展委员会',
+    resourceName: '旅游景点信息数据',
+    issue: '数据更新滞后，景点信息不准确'
+  },
+  {
+    provider: '重庆市市场监督管理局',
+    resourceName: '企业注册登记数据',
+    issue: '数据重复录入，造成统计偏差'
+  },
+  {
+    provider: '重庆市发展和改革委员会',
+    resourceName: '经济发展指标数据',
+    issue: '数据口径不统一，影响政策制定'
+  },
+  {
+    provider: '重庆市规划和自然资源局',
+    resourceName: '土地利用规划数据',
+    issue: '数据精度不足，影响规划决策'
+  },
+  {
+    provider: '重庆市住房和城乡建设委员会',
+    resourceName: '建筑工程项目数据',
+    issue: '数据验证机制缺失，存在虚假信息'
+  },
+  {
+    provider: '重庆市水利局',
+    resourceName: '水资源监测数据',
+    issue: '数据采集设备故障，影响监测准确性'
+  },
+  {
+    provider: '重庆市农业农村委员会',
+    resourceName: '农业生产统计数据',
+    issue: '数据上报不及时，影响农业政策制定'
+  },
+  {
+    provider: '重庆市商务委员会',
+    resourceName: '对外贸易数据',
+    issue: '数据分类标准不统一，影响贸易分析'
+  },
+  {
+    provider: '重庆市科学技术局',
+    resourceName: '科技创新项目数据',
+    issue: '数据质量参差不齐，影响项目评估'
+  },
+  {
+    provider: '重庆市民政局',
+    resourceName: '社会组织登记数据',
+    issue: '数据更新频率过低，信息滞后严重'
+  },
+  {
+    provider: '重庆市司法局',
+    resourceName: '法律援助服务数据',
+    issue: '数据统计口径不一致，影响服务质量评估'
+  },
+  {
+    provider: '重庆市审计局',
+    resourceName: '审计项目数据',
+    issue: '数据保密级别设置不当，存在泄露风险'
+  },
+  {
+    provider: '重庆市体育局',
+    resourceName: '体育设施使用数据',
+    issue: '数据采集方式落后，影响设施管理效率'
   }
 ])
 
@@ -447,21 +553,7 @@ const associateAllFiles = async () => {
   }
 }
 
-// 获取文件名（不包含路径）
-const getFileName = (filePath: string): string => {
-  return filePath.split(/[/\\]/).pop() || filePath
-}
 
-// 获取相对路径（显示目录结构）
-const getRelativePath = (filePath: string): string => {
-  const pathParts = filePath.split(/[/\\]/)
-  // 如果路径太长，只显示最后几级目录
-  if (pathParts.length > 3) {
-    return '.../' + pathParts.slice(-4, -1).join('/') + '/'
-  } else {
-    return pathParts.slice(0, -1).join('/') + '/'
-  }
-}
 
 // 刷新数据
 const refreshData = async () => {
@@ -572,6 +664,99 @@ const openFile = async (filePath: string) => {
   } catch (err) {
     console.error('❌ 打开文件失败:', err)
     error.value = '打开文件失败，请检查文件是否存在'
+  }
+}
+
+// 切换全选状态
+const toggleSelectAll = () => {
+  if (isAllSelected.value) {
+    selectedItems.value = []
+  } else {
+    selectedItems.value = dataList.value.map((_, index) => index)
+  }
+}
+
+// 切换单个项目选择状态
+const toggleSelectItem = (index: number) => {
+  const itemIndex = selectedItems.value.indexOf(index)
+  if (itemIndex > -1) {
+    selectedItems.value.splice(itemIndex, 1)
+  } else {
+    selectedItems.value.push(index)
+  }
+}
+
+// 批量关联文件
+const batchAssociateFiles = async () => {
+  if (!dataDirectory.value || selectedItems.value.length === 0) return
+
+  isAssociating.value = true
+  error.value = ''
+
+  try {
+    console.log('🔗 开始批量关联文件...')
+
+    for (const index of selectedItems.value) {
+      const item = dataList.value[index]
+      if (!item.associatedFile) {
+        await findRelatedFiles(item, index, false) // 静默模式
+      }
+    }
+
+    console.log('✅ 批量关联完成')
+  } catch (err) {
+    console.error('❌ 批量关联失败:', err)
+    error.value = '批量关联失败，请检查数据目录配置'
+  } finally {
+    isAssociating.value = false
+  }
+}
+
+// 清除选择
+const clearSelection = () => {
+  selectedItems.value = []
+}
+
+// 删除数据源
+const deleteDataSource = (item: DataItem, index: number) => {
+  if (confirm(`确定要删除数据源"${item.resourceName}"吗？此操作不可恢复。`)) {
+    dataList.value.splice(index, 1)
+    console.log(`🗑️ 删除数据源: ${item.resourceName}`)
+  }
+}
+
+// 修改为手动更新
+const setManualUpdate = (item: DataItem, index: number) => {
+  // 这里可以添加修改更新模式的逻辑
+  console.log(`🔄 修改数据源为手动更新: ${item.resourceName}`)
+  // 可以显示一个提示或更新数据源的状态
+}
+
+// 上传文件更新
+const uploadFileUpdate = async (item: DataItem, index: number) => {
+  try {
+    const selected = await open({
+      multiple: false,
+      title: '选择要上传的更新文件',
+      filters: [
+        {
+          name: 'Excel文件',
+          extensions: ['xlsx', 'xls', 'csv']
+        },
+        {
+          name: '所有文件',
+          extensions: ['*']
+        }
+      ]
+    })
+
+    if (selected) {
+      console.log(`📤 上传文件更新: ${selected}`)
+      // 这里可以添加文件上传和处理的逻辑
+    }
+  } catch (err) {
+    console.error('❌ 上传文件失败:', err)
+    error.value = '上传文件失败，请重试'
   }
 }
 
