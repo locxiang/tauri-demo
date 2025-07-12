@@ -5,12 +5,6 @@ use log::{error, info};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 初始化现代化日志系统
-    if let Err(e) = app::init_log_system() {
-        eprintln!("❌ 初始化日志系统失败: {}", e);
-    } else {
-        println!("✅ 现代化日志系统初始化成功");
-    }
     
     info!("🚀 启动数字重庆业务数据巡查自动化系统 v{}", env!("CARGO_PKG_VERSION"));
     
