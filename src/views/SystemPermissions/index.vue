@@ -23,7 +23,7 @@
       <div class="flex items-center gap-6">
         <button
           @click="goBack"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 transition-all duration-300 relative overflow-hidden group"
         >
           <div class="text-lg font-bold">←</div>
           <span class="text-sm">返回控制台</span>
@@ -40,7 +40,7 @@
         <button
           @click="handleRefresh"
           :disabled="authStore.isLoading"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
         >
           <span class="text-lg">🔄</span>
           <span class="text-sm">{{ authStore.isLoading ? '刷新中...' : '刷新状态' }}</span>
@@ -50,7 +50,7 @@
         <button
           @click="handleClearAll"
           :disabled="authStore.isLoading"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-md text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-md text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
         >
           <span class="text-lg">🗑️</span>
           <span class="text-sm">清除所有Token</span>
@@ -62,7 +62,7 @@
     <!-- 主要内容区域 -->
     <div class="h-[calc(100vh-40px)] overflow-y-auto p-6 relative z-10">
       <!-- 权限概览 -->
-      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-6 mb-6 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-6 mb-6 shadow-2xl hover:shadow-blue-500/10 transition-all duration-300">
         <div class="mb-6">
           <div class="flex items-center gap-3 relative">
             <div class="text-2xl animate-icon-glow">📊</div>
@@ -131,7 +131,7 @@
       </div>
 
       <!-- 系统状态列表 -->
-      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-6 mb-6 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-6 mb-6 shadow-2xl hover:shadow-blue-500/10 transition-all duration-300">
         <div class="mb-6">
           <div class="flex items-center gap-3 relative">
             <div class="text-2xl animate-icon-glow">🖥️</div>
@@ -189,7 +189,7 @@
                   <button
                     @click="handleClearSystem(system.system_id)"
                     :disabled="authStore.isLoading"
-                    class="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded text-xs text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
+                    class="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded text-xs text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
                   >
                     <span class="text-sm">🗑️</span>
                     <span>清除</span>
@@ -203,7 +203,7 @@
       </div>
 
       <!-- Token历史记录 -->
-      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-6 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-6 shadow-2xl hover:shadow-blue-500/10 transition-all duration-300">
         <div class="mb-6">
           <div class="flex items-center gap-3 relative">
             <div class="text-2xl animate-icon-glow">📚</div>

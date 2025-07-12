@@ -1,6 +1,6 @@
 [package]
 name = "big-data-rpa-v4"
-version = "0.10.0"
+version = "0.11.0"
 description = "数字重庆业务数据巡查自动化系统"
 authors = ["you"]
 edition = "2021"
@@ -47,6 +47,9 @@ futures = "0.3"
 nix = "0.29"
 # Base64编解码
 base64 = "0.22"
+# HTTP客户端
+reqwest = { version = "0.12", features = ["json", "cookies"] }
+url = "2.5"
 
 [profile.dev]
 incremental = true # Compile your binary in smaller steps.

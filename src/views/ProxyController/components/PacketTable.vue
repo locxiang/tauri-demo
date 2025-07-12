@@ -197,7 +197,7 @@ const openPacketDetail = async (packet: PacketData) => {
           <div class="flex items-center">
             <button
               @click.stop="openPacketDetail(packet)"
-              class="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-xs text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group"
+              class="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-xs text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 transition-all duration-300 relative overflow-hidden group"
             >
               <span class="text-xs">👁️</span>
               <span class="font-medium">详情</span>

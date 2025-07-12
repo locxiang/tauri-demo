@@ -4,6 +4,7 @@ pub mod window;
 pub mod utils;
 pub mod logread;
 pub mod file_match;
+pub mod bi_platform;
 
 pub use capture::*;
 pub use auth::*;
@@ -11,6 +12,7 @@ pub use window::*;
 pub use utils::*;
 pub use logread::*;
 pub use file_match::*;
+pub use bi_platform::*;
 
 // Re-export initialization functions from service modules
 pub use crate::service::capture::{init_app_handle, init_capture_system};

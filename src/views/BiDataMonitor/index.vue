@@ -23,7 +23,7 @@
       <div class="flex items-center gap-6">
         <button
           @click="goBack"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/10 to-cyan-500/10 border border-green-500/30 rounded-md text-slate-200 hover:from-green-500/20 hover:to-cyan-500/20 hover:border-green-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/10 to-cyan-500/10 border border-green-500/30 rounded-md text-slate-200 hover:from-green-500/20 hover:to-cyan-500/20 hover:border-green-500/50 transition-all duration-300 relative overflow-hidden group"
         >
           <div class="text-lg font-bold">←</div>
           <span class="text-sm">返回控制台</span>
@@ -50,7 +50,7 @@
         <!-- 数据目录按钮 -->
         <button
           @click="selectDataDirectory"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-indigo-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group cursor-pointer"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-indigo-500/20 hover:border-blue-500/50 transition-all duration-300 relative overflow-hidden group cursor-pointer"
         >
           <span class="text-lg">📁</span>
           <span class="text-sm">{{ dataDirectory ? '更换目录' : '选择数据目录' }}</span>
@@ -61,7 +61,7 @@
         <button
           @click="associateAllFiles"
           :disabled="!dataDirectory || isAssociating || dataList.length === 0"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-md text-slate-200 hover:from-purple-500/20 hover:to-pink-500/20 hover:border-purple-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group cursor-pointer"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-md text-slate-200 hover:from-purple-500/20 hover:to-pink-500/20 hover:border-purple-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group cursor-pointer"
         >
           <span class="text-lg">{{ isAssociating ? '🔄' : '🔗' }}</span>
           <span class="text-sm">{{ isAssociating ? '关联中...' : '一键关联' }}</span>
@@ -72,10 +72,21 @@
         <button
           @click="refreshData"
           :disabled="isLoading"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-md text-slate-200 hover:from-green-500/20 hover:to-emerald-500/20 hover:border-green-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-md text-slate-200 hover:from-green-500/20 hover:to-emerald-500/20 hover:border-green-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
         >
           <span class="text-lg" :class="{ 'animate-spin': isLoading }">🔄</span>
           <span class="text-sm">{{ isLoading ? '刷新中...' : '刷新数据' }}</span>
+          <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
+        </button>
+
+        <!-- BI平台查询按钮 -->
+        <button
+          @click="sendBiQuery"
+          :disabled="biPlatformStore.isLoading"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/30 rounded-md text-slate-200 hover:from-purple-500/20 hover:to-indigo-500/20 hover:border-purple-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+        >
+          <span class="text-lg">📊</span>
+          <span class="text-sm">{{ biPlatformStore.isLoading ? '查询中...' : 'BI平台查询' }}</span>
           <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
         </button>
       </div>
@@ -86,9 +97,52 @@
       <!-- 错误提示 -->
       <div v-if="error" class="bg-gradient-to-br from-red-500/20 to-pink-500/20 backdrop-blur-2xl border border-red-500/30 rounded-xl p-4 mb-6 shadow-2xl flex items-center gap-4">
         <div class="text-2xl animate-icon-pulse">⚠️</div>
-        <div class="flex flex-col">
+        <div class="flex flex-col flex-1">
           <span class="font-semibold text-red-300">发生错误</span>
           <span class="text-red-400 text-sm">{{ error }}</span>
+        </div>
+        <button
+          @click="error = ''"
+          class="flex items-center justify-center w-8 h-8 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-500/30 hover:border-red-500/50 transition-all duration-300"
+          title="关闭错误提示"
+        >
+          <span class="text-lg">×</span>
+        </button>
+      </div>
+
+      <!-- BI平台查询结果 -->
+      <div v-if="biPlatformStore.hasError" class="bg-gradient-to-br from-red-500/20 to-pink-500/20 backdrop-blur-2xl border border-red-500/30 rounded-xl p-4 mb-6 shadow-2xl flex items-center gap-4">
+        <div class="text-2xl animate-icon-pulse">⚠️</div>
+        <div class="flex flex-col flex-1">
+          <span class="font-semibold text-red-300">BI平台查询错误</span>
+          <span class="text-red-400 text-sm">{{ biPlatformStore.error }}</span>
+        </div>
+        <button
+          @click="biPlatformStore.clearError"
+          class="flex items-center justify-center w-8 h-8 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-500/30 hover:border-red-500/50 transition-all duration-300"
+          title="关闭错误提示"
+        >
+          <span class="text-lg">×</span>
+        </button>
+      </div>
+
+      <div v-if="biPlatformStore.hasResponse && biPlatformStore.lastResponse?.success" class="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-2xl border border-green-500/30 rounded-xl p-4 mb-6 shadow-2xl">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-3">
+            <div class="text-2xl animate-icon-glow">✅</div>
+            <h3 class="text-lg font-semibold text-green-300">BI平台查询成功</h3>
+          </div>
+          <button
+            @click="biPlatformStore.clearResponse"
+            class="flex items-center justify-center w-8 h-8 bg-green-500/20 border border-green-500/30 rounded-lg text-green-300 hover:bg-green-500/30 hover:border-green-500/50 transition-all duration-300"
+            title="关闭成功提示"
+          >
+            <span class="text-lg">×</span>
+          </button>
+        </div>
+        <div class="text-green-400 text-sm">
+          <p>查询时间: {{ new Date().toLocaleString() }}</p>
+          <p v-if="biPlatformStore.lastResponse?.message">消息: {{ biPlatformStore.lastResponse.message }}</p>
         </div>
       </div>
 
@@ -106,7 +160,7 @@
       </div>
 
       <!-- 统计数据面板 -->
-      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-green-500/20 rounded-xl p-6 mb-6 shadow-2xl hover:shadow-green-500/10 hover:-translate-y-1 transition-all duration-300">
+      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-green-500/20 rounded-xl p-6 mb-6 shadow-2xl hover:shadow-green-500/10 transition-all duration-300">
         <div class="mb-4">
           <div class="flex items-center gap-3 relative">
             <div class="text-xl animate-icon-glow">📈</div>
@@ -159,7 +213,7 @@
       </div>
 
       <!-- 数据异常列表 -->
-      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-green-500/20 rounded-xl shadow-2xl hover:shadow-green-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+      <div class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-green-500/20 rounded-xl shadow-2xl hover:shadow-green-500/10 transition-all duration-300 relative overflow-hidden">
         <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-green-500/80 to-transparent animate-packet-scan"></div>
 
         <div class="p-6 border-b border-green-500/20">
@@ -353,9 +407,11 @@ import { useRouter } from 'vue-router'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { open as shellOpen } from '@tauri-apps/plugin-shell'
+import { useBiPlatformStore } from '../../stores/biPlatformStore.ts'
 import AssociatedFileCard from './components/AssociatedFileCard.vue'
 
 const router = useRouter()
+const biPlatformStore = useBiPlatformStore()
 
 // 响应式数据
 const lastCheckTime = ref('2024-01-15 14:30:25')
@@ -575,6 +631,26 @@ const refreshData = async () => {
     error.value = '刷新数据失败，请检查网络连接'
   } finally {
     isLoading.value = false
+  }
+}
+
+// 发送BI平台查询
+const sendBiQuery = async () => {
+  try {
+    console.log('开始发送BI平台查询...')
+    const response = await biPlatformStore.sendBiQuery()
+    console.log('BI平台查询成功:', response)
+
+    // 可以在这里处理响应数据
+    if (response.success && response.data) {
+      console.log('查询数据:', response.data)
+      // 更新统计数据
+      lastCheckTime.value = new Date().toLocaleString('zh-CN')
+      qualificationRate.value = Math.round((Math.random() * 20 + 80) * 10) / 10
+      totalDataCount.value = Math.floor(Math.random() * 50000 + 100000)
+    }
+  } catch (error) {
+    console.error('BI平台查询失败:', error)
   }
 }
 

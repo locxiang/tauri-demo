@@ -2,6 +2,7 @@
 mod api;
 mod service;
 use log::{error, info};
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -39,6 +40,8 @@ pub fn run() {
             api::open_folder,
             // 文件匹配命令
             api::find_similar_files,
+            // BI平台查询命令
+            api::send_bi_query,
         ])
         .setup(|app| {
             // 初始化日志管理器基础组件（同步）
@@ -51,6 +54,10 @@ pub fn run() {
             if let Err(e) = api::init_capture_system() {
                 error!("初始化捕获系统失败: {}", e);
             }   
+            
+            // 初始化BI平台服务
+            let bi_service = api::init_bi_platform_service();
+            app.manage(bi_service);
             
             // 使用新的初始化流程
             let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");

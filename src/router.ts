@@ -7,6 +7,8 @@ import PacketDetailWindow from "./views/PacketWindows/index.vue";
 import SystemPermissions from "./views/SystemPermissions/index.vue";
 import SystemLogs from "./views/SystemLogs/index.vue";
 import BiDataMonitor from "./views/BiDataMonitor/index.vue";
+import AutoInspection from "./views/AutoInspection/index.vue";
+import IndicatorScreen from "./views/IndicatorScreen/index.vue";
 
 // 路由配置
 const routes = [
@@ -42,8 +44,18 @@ const routes = [
   },
   {
     path: "/bi-monitor",
-    name: "BiDataMonitor", 
+    name: "BiDataMonitor",
     component: BiDataMonitor
+  },
+  {
+    path: "/auto-inspection",
+    name: "AutoInspection",
+    component: AutoInspection
+  },
+  {
+    path: "/indicator-screen",
+    name: "IndicatorScreen",
+    component: IndicatorScreen
   }
 ];
 

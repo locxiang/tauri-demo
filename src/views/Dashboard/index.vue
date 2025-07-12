@@ -350,6 +350,12 @@ const handleModuleClick = (module: any) => {
   if (module.id === 1) {
     // BI系统数据异常监控 - 跳转到BI监控页面
     openBiMonitorPage();
+  } else if (module.id === 2) {
+    // 自动化巡检体证指标 - 跳转到巡检页面
+    openAutoInspectionPage();
+  } else if (module.id === 4) {
+    // 自动化处理指标上屏 - 跳转到指标上屏页面
+    openIndicatorScreenPage();
   } else {
     // 其他模块的处理逻辑
     console.log(`模块 ${module.name} 功能开发中...`);
@@ -388,6 +394,16 @@ const openLogsPage = () => {
 // 打开BI数据监控页面
 const openBiMonitorPage = () => {
   router.push('/bi-monitor');
+};
+
+// 打开自动化巡检体证指标页面
+const openAutoInspectionPage = () => {
+  router.push('/auto-inspection');
+};
+
+// 打开自动化处理指标上屏页面
+const openIndicatorScreenPage = () => {
+  router.push('/indicator-screen');
 };
 
 

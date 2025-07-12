@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router';
 import PacketTable from './components/PacketTable.vue';
 import PacketFilter from './components/PacketFilter.vue';
 import { useProxyStore } from '../../stores/proxyStore.ts';
+import { useBiPlatformStore } from '../../stores/biPlatformStore.ts';
 import './animations.css';
 
 // 导入SVG图标
@@ -12,6 +13,7 @@ import HttpResponseIcon from '../../assets/icons/http-response.svg';
 
 const router = useRouter();
 const proxyStore = useProxyStore();
+const biPlatformStore = useBiPlatformStore();
 
 // 表格最大化状态
 const isTableMaximized = ref(false);
@@ -24,6 +26,22 @@ const goBack = () => {
 const toggleTableMaximize = () => {
   console.log('toggleTableMaximize', isTableMaximized.value);
   isTableMaximized.value = !isTableMaximized.value;
+};
+
+// 发送BI平台查询
+const sendBiQuery = async () => {
+  try {
+    console.log('开始发送BI平台查询...');
+    const response = await biPlatformStore.sendBiQuery();
+    console.log('BI平台查询成功:', response);
+
+    // 可以在这里处理响应数据
+    if (response.success && response.data) {
+      console.log('查询数据:', response.data);
+    }
+  } catch (error) {
+    console.error('BI平台查询失败:', error);
+  }
 };
 
 
@@ -54,7 +72,7 @@ const toggleTableMaximize = () => {
       <div class="flex items-center gap-6">
         <button
           @click="goBack"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-500/10 to-cyan-500/10 border border-blue-500/30 rounded-md text-slate-200 hover:from-blue-500/20 hover:to-cyan-500/20 hover:border-blue-500/50 transition-all duration-300 relative overflow-hidden group"
         >
           <div class="text-lg font-bold">←</div>
           <span class="text-sm">返回控制台</span>
@@ -79,7 +97,7 @@ const toggleTableMaximize = () => {
 
         <button
           @click="proxyStore.clearPackets"
-          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-md text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group"
+          class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-md text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 transition-all duration-300 relative overflow-hidden group"
         >
           <span class="text-lg">🧹</span>
           <span class="text-sm">清空记录</span>
@@ -93,14 +111,57 @@ const toggleTableMaximize = () => {
       <!-- 错误提示 -->
       <div v-if="proxyStore.error" class="bg-gradient-to-br from-red-500/20 to-pink-500/20 backdrop-blur-2xl border border-red-500/30 rounded-xl p-4 mb-6 shadow-2xl flex items-center gap-4">
         <div class="text-2xl animate-icon-pulse">⚠️</div>
-        <div class="flex flex-col">
+        <div class="flex flex-col flex-1">
           <span class="font-semibold text-red-300">发生错误</span>
           <span class="text-red-400 text-sm">{{ proxyStore.error }}</span>
+        </div>
+        <button
+          @click="proxyStore.error = ''"
+          class="flex items-center justify-center w-8 h-8 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-500/30 hover:border-red-500/50 transition-all duration-300"
+          title="关闭错误提示"
+        >
+          <span class="text-lg">×</span>
+        </button>
+      </div>
+
+      <!-- BI平台查询结果 -->
+      <div v-if="biPlatformStore.hasError" class="bg-gradient-to-br from-red-500/20 to-pink-500/20 backdrop-blur-2xl border border-red-500/30 rounded-xl p-4 mb-6 shadow-2xl flex items-center gap-4">
+        <div class="text-2xl animate-icon-pulse">⚠️</div>
+        <div class="flex flex-col flex-1">
+          <span class="font-semibold text-red-300">BI平台查询错误</span>
+          <span class="text-red-400 text-sm">{{ biPlatformStore.error }}</span>
+        </div>
+        <button
+          @click="biPlatformStore.clearError"
+          class="flex items-center justify-center w-8 h-8 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 hover:bg-red-500/30 hover:border-red-500/50 transition-all duration-300"
+          title="关闭错误提示"
+        >
+          <span class="text-lg">×</span>
+        </button>
+      </div>
+
+      <div v-if="biPlatformStore.hasResponse && biPlatformStore.lastResponse?.success" class="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-2xl border border-green-500/30 rounded-xl p-4 mb-6 shadow-2xl">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-3">
+            <div class="text-2xl animate-icon-glow">✅</div>
+            <h3 class="text-lg font-semibold text-green-300">BI平台查询成功</h3>
+          </div>
+          <button
+            @click="biPlatformStore.clearResponse"
+            class="flex items-center justify-center w-8 h-8 bg-green-500/20 border border-green-500/30 rounded-lg text-green-300 hover:bg-green-500/30 hover:border-green-500/50 transition-all duration-300"
+            title="关闭成功提示"
+          >
+            <span class="text-lg">×</span>
+          </button>
+        </div>
+        <div class="text-green-400 text-sm">
+          <p>查询时间: {{ new Date().toLocaleString() }}</p>
+          <p v-if="biPlatformStore.lastResponse?.message">消息: {{ biPlatformStore.lastResponse.message }}</p>
         </div>
       </div>
 
       <!-- 控制面板 -->
-      <div v-show="!isTableMaximized" class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-4 mb-4 shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300">
+      <div v-show="!isTableMaximized" class="bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl p-4 mb-4 shadow-2xl hover:shadow-blue-500/10 transition-all duration-300">
         <div class="mb-4">
           <div class="flex items-center gap-3 relative">
             <div class="text-xl animate-icon-glow">🎛️</div>
@@ -141,7 +202,7 @@ const toggleTableMaximize = () => {
             <button
               @click="proxyStore.startCapture"
               :disabled="!proxyStore.selectedDevice || proxyStore.captureStatus.running || proxyStore.isLoading"
-              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg text-slate-200 hover:from-green-500/20 hover:to-emerald-500/20 hover:border-green-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group"
+              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg text-slate-200 hover:from-green-500/20 hover:to-emerald-500/20 hover:border-green-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
             >
               <span class="text-lg">▶️</span>
               <span class="font-semibold">{{ proxyStore.isLoading ? '启动中...' : '开始抓包' }}</span>
@@ -151,10 +212,20 @@ const toggleTableMaximize = () => {
             <button
               @click="proxyStore.stopCapture"
               :disabled="!proxyStore.captureStatus.running || proxyStore.isLoading"
-              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-lg text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 relative overflow-hidden group"
+              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500/10 to-pink-500/10 border border-red-500/30 rounded-lg text-slate-200 hover:from-red-500/20 hover:to-pink-500/20 hover:border-red-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
             >
               <span class="text-lg">⏹️</span>
               <span class="font-semibold">{{ proxyStore.isLoading ? '停止中...' : '停止抓包' }}</span>
+              <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
+            </button>
+
+            <button
+              @click="sendBiQuery"
+              :disabled="biPlatformStore.isLoading"
+              class="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500/10 to-indigo-500/10 border border-purple-500/30 rounded-lg text-slate-200 hover:from-purple-500/20 hover:to-indigo-500/20 hover:border-purple-500/50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed relative overflow-hidden group"
+            >
+              <span class="text-lg">📊</span>
+              <span class="font-semibold">{{ biPlatformStore.isLoading ? '查询中...' : 'BI平台查询' }}</span>
               <div class="absolute inset-0 bg-gradient-to-r from-white/0 via-white/5 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-500"></div>
             </button>
           </div>
@@ -165,7 +236,7 @@ const toggleTableMaximize = () => {
       <PacketFilter v-show="!isTableMaximized" />
 
       <!-- 实时数据包列表 -->
-      <div :class="['bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-1 transition-all duration-300 relative overflow-hidden',
+      <div :class="['bg-gradient-to-br from-slate-900/95 to-slate-800/90 backdrop-blur-2xl border border-blue-500/20 rounded-xl shadow-2xl hover:shadow-blue-500/10 transition-all duration-300 relative overflow-hidden',
                    isTableMaximized ? 'mt-0' : '']">
         <div class="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-blue-500/80 to-transparent animate-packet-scan"></div>
 
