@@ -42,6 +42,7 @@ dashmap = "6.1"
 thiserror = "1.0"
 toml = "0.8"
 futures = "0.3"
+reqwest = "0.12"
 # 平台特定依赖
 [target.'cfg(unix)'.dependencies]
 nix = "0.29"
