@@ -115,17 +115,25 @@ const toggleTableMaximize = () => {
           <!-- 网络设备选择 - 占50%宽度 -->
           <div class="w-1/2 bg-gradient-to-br from-slate-900/60 to-slate-800/40 backdrop-blur-lg border border-blue-500/10 rounded-lg p-3">
             <label class="block text-sm font-semibold text-slate-200 mb-2">选择网络设备</label>
-            <select
-              v-model="proxyStore.selectedDevice"
-              :disabled="proxyStore.captureStatus.running || proxyStore.isLoading"
-              class="w-full px-3 py-2 bg-gradient-to-r from-slate-900/80 to-slate-800/60 border border-blue-500/30 rounded-lg text-slate-200 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <option v-if="proxyStore.devices.length === 0" value="" disabled>未找到网络设备</option>
-              <option v-for="device in proxyStore.devices" :key="device.name" :value="device.name">
-                {{ device.name }} - {{ device.description }}
-                {{ device.is_loopback ? ' (回环)' : '' }}
-              </option>
-            </select>
+            <div class="relative">
+              <select
+                v-model="proxyStore.selectedDevice"
+                :disabled="proxyStore.captureStatus.running || proxyStore.isLoading"
+                class="w-full px-3 py-2 bg-gradient-to-r from-slate-900/80 to-slate-800/60 border border-blue-500/30 rounded-lg text-slate-200 focus:outline-none focus:border-blue-500/60 focus:ring-2 focus:ring-blue-500/20 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed appearance-none cursor-pointer select-dropdown"
+              >
+                <option v-if="proxyStore.devices.length === 0" value="" disabled>未找到网络设备</option>
+                <option v-for="device in proxyStore.devices" :key="device.name" :value="device.name" class="select-option">
+                  {{ device.name }} - {{ device.description }}
+                  {{ device.is_loopback ? ' (回环)' : '' }}
+                </option>
+              </select>
+              <!-- 自定义下拉箭头 -->
+              <div class="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            </div>
           </div>
 
           <!-- 控制按钮 - 占剩余50%宽度 -->
@@ -220,5 +228,57 @@ const toggleTableMaximize = () => {
 
 .response-icon {
   filter: brightness(0) saturate(100%) invert(48%) sepia(98%) saturate(1295%) hue-rotate(85deg) brightness(98%) contrast(97%);
+}
+
+/* 跨平台下拉框样式 */
+.select-dropdown {
+  /* 移除默认的下拉箭头 */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  /* 确保在所有浏览器中都有相同的基础样式 */
+  background-color: transparent;
+  color: #e2e8f0; /* text-slate-200 */
+}
+
+/* 针对不同浏览器的下拉框样式 */
+.select-dropdown::-ms-expand {
+  display: none; /* IE/Edge */
+}
+
+.select-dropdown:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.6); /* border-blue-500/60 */
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); /* ring-blue-500/20 */
+}
+
+/* 下拉选项样式 */
+.select-dropdown option {
+  background-color: #1e293b; /* slate-800 */
+  color: #e2e8f0; /* text-slate-200 */
+  padding: 8px 12px;
+  border: none;
+  outline: none;
+}
+
+.select-dropdown option:hover {
+  background-color: #334155; /* slate-700 */
+}
+
+.select-dropdown option:checked {
+  background-color: #3b82f6; /* blue-500 */
+  color: white;
+}
+
+/* 禁用状态 */
+.select-dropdown:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: rgba(30, 41, 59, 0.8); /* slate-800 with opacity */
+}
+
+/* 确保自定义箭头在禁用时也正确显示 */
+.select-dropdown:disabled + div svg {
+  opacity: 0.5;
 }
 </style>

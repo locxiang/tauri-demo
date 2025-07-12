@@ -76,15 +76,23 @@
         <div class="flex items-center space-x-3">
           <div class="flex items-center space-x-2">
             <label class="text-xs text-slate-400">日志级别:</label>
-            <select v-model="selectedLogLevel"
-                    class="px-3 py-1 bg-slate-700 text-slate-200 border border-slate-600 rounded-md text-xs">
-              <option value="all">全部</option>
-              <option value="error">Error</option>
-              <option value="warn">Warn</option>
-              <option value="info">Info</option>
-              <option value="debug">Debug</option>
-              <option value="trace">Trace</option>
-            </select>
+            <div class="relative">
+              <select v-model="selectedLogLevel"
+                      class="px-3 py-1 bg-slate-700 text-slate-200 border border-slate-600 rounded-md text-xs appearance-none cursor-pointer select-dropdown">
+                <option value="all">全部</option>
+                <option value="error">Error</option>
+                <option value="warn">Warn</option>
+                <option value="info">Info</option>
+                <option value="debug">Debug</option>
+                <option value="trace">Trace</option>
+              </select>
+              <!-- 自定义下拉箭头 -->
+              <div class="absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                </svg>
+              </div>
+            </div>
           </div>
 
           <div class="flex items-center space-x-2">
@@ -476,5 +484,45 @@ onUnmounted(async () => {
 .log-entry-enter-from {
   opacity: 0;
   transform: translateY(-10px);
+}
+
+/* 跨平台下拉框样式 */
+.select-dropdown {
+  /* 移除默认的下拉箭头 */
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  /* 确保在所有浏览器中都有相同的基础样式 */
+  background-color: transparent;
+  color: #e2e8f0; /* text-slate-200 */
+}
+
+/* 针对不同浏览器的下拉框样式 */
+.select-dropdown::-ms-expand {
+  display: none; /* IE/Edge */
+}
+
+.select-dropdown:focus {
+  outline: none;
+  border-color: rgba(59, 130, 246, 0.6); /* border-blue-500/60 */
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); /* ring-blue-500/20 */
+}
+
+/* 下拉选项样式 */
+.select-dropdown option {
+  background-color: #1e293b; /* slate-800 */
+  color: #e2e8f0; /* text-slate-200 */
+  padding: 8px 12px;
+  border: none;
+  outline: none;
+}
+
+.select-dropdown option:hover {
+  background-color: #334155; /* slate-700 */
+}
+
+.select-dropdown option:checked {
+  background-color: #3b82f6; /* blue-500 */
+  color: white;
 }
 </style>
